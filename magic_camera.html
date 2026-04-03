@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Faye's Magic Camera v3.0 (Sound FX) 😈</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        #container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .input_video { display: none; }
+        .output_canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        #status { position: absolute; top: 20px; left: 20px; color: lime; font-size: 16px; z-index: 100; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; pointer-events: none; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 24px; z-index: 200; text-align: center; }
+
+        /* Character Overlays */
+        .overlay-img { position: absolute; z-index: 50; pointer-events: none; display: none; }
+        
+        /* Ghost (2) */
+        #ghost-container { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); animation: float 3s ease-in-out infinite; display: none; z-index: 60; }
+        @keyframes float { 0% { transform: translate(-50%, 0px); } 50% { transform: translate(-50%, -20px); } 100% { transform: translate(-50%, 0px); } }
+        
+        /* Snoopy (4) */
+        #snoopy { position: absolute; bottom: 10%; left: -150px; width: 150px; z-index: 70; display: none; }
+        @keyframes run { 0% { left: -150px; transform: scaleX(1); } 45% { left: 100vw; transform: scaleX(1); } 50% { left: 100vw; transform: scaleX(-1); } 95% { left: -150px; transform: scaleX(-1); } 100% { left: -150px; transform: scaleX(1); } }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="loading">🔮 Faye v3.0 (Audio)<br>Click anywhere to enable sound! 🔊</div>
+        <div id="status">Status: Initializing...</div>
+        <video class="input_video"></video>
+        <canvas class="output_canvas"></canvas>
+
+        <!-- Overlays -->
+        <div id="ghost-container">
+            <img src="https://media.giphy.com/media/l2R0aKwehYSnuOoOA/giphy.gif" width="200">
+            <div style="color:white; font-size:20px; text-align:center; text-shadow:2px 2px 4px #000;">BOO! 👻</div>
+        </div>
+        <img id="snoopy" src="https://media.giphy.com/media/aeu60CPZd8zw4/giphy.gif">
+    </div>
+
+    <script>
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementsByClassName('output_canvas')[0];
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusElement = document.getElementById('status');
+        const loadingElement = document.getElementById('loading');
+        
+        // Audio Context for Magic Sound (Synthesized to avoid external file)
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                loadingElement.innerText = "Sound Enabled! 🔊";
+                setTimeout(() => loadingElement.style.display = 'none', 1000);
+            }
+        }
+        document.body.addEventListener('click', initAudio); // User interaction required
+
+        // Play Magic Sound (Sparkle effect)
+        function playMagicSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(2000, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        let lastGesture = 0;
+        let fireworks = [];
+        
+        // --- Improved Finger Counting (with Thumb) ---
+        function countFingers(landmarks) {
+            // Fingers 2-5: Tip < PIP (y-axis inverted)
+            const indexUp = landmarks[8].y < landmarks[6].y;
+            const middleUp = landmarks[12].y < landmarks[10].y;
+            const ringUp = landmarks[16].y < landmarks[14].y;
+            const pinkyUp = landmarks[20].y < landmarks[18].y;
+            
+            // Thumb (1): Check x distance from Index Base (5)
+            // If Thumb Tip (4) is far from Index Base (5), it's extended.
+            const thumbTip = landmarks[4];
+            const indexBase = landmarks[5];
+            const thumbDist = Math.hypot(thumbTip.x - indexBase.x, thumbTip.y - indexBase.y);
+            // Heuristic: dist > 0.1 usually means extended
+            const thumbUp = thumbDist > 0.15; // Tuned threshold
+
+            let count = 0;
+            if (indexUp) count++;
+            if (middleUp) count++;
+            if (ringUp) count++;
+            if (pinkyUp) count++;
+            
+            // Logic
+            if (count === 4 && thumbUp) return 5; // 4 + Thumb = 5
+            if (count === 4 && !thumbUp) return 4; // 4 fingers only
+            if (count === 3 && !pinkyUp) return 3; // Index, Middle, Ring
+            if (count === 2 && indexUp && middleUp) return 2; // Peace
+            if (count === 1 && indexUp) return 1; // Index
+            
+            return 0;
+        }
+
+        // Firework Class
+        class Firework {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.particles = [];
+                const colors = ['#F00', '#0F0', '#00F', '#FF0', '#F0F', '#0FF'];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                for(let i=0; i<60; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 10 + 2;
+                    this.particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, alpha: 1, color });
+                }
+            }
+            update() { this.particles.forEach(p => { p.x+=p.vx; p.y+=p.vy; p.vy+=0.1; p.alpha-=0.02; }); this.particles=this.particles.filter(p=>p.alpha>0); }
+            draw(ctx) { this.particles.forEach(p => { ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill(); }); ctx.globalAlpha=1; }
+        }
+
+        function resizeCanvas() { canvasElement.width = window.innerWidth; canvasElement.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function onResults(results) {
+            let gesture = 0;
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                gesture = countFingers(results.multiHandLandmarks[0]);
+            }
+            statusElement.innerText = `Status: Detected ${gesture}`;
+
+            // --- Effects State ---
+            document.getElementById('ghost-container').style.display = (gesture === 2) ? 'block' : 'none';
+            
+            const snoopy = document.getElementById('snoopy');
+            if (gesture === 4) {
+                snoopy.style.display = 'block';
+                snoopy.style.animation = 'run 4s linear infinite';
+            } else {
+                snoopy.style.display = 'none';
+                snoopy.style.animation = 'none';
+            }
+
+            // --- Sound Trigger (Only once when entering state 5) ---
+            if (gesture === 5 && lastGesture !== 5) {
+                playMagicSound();
+            }
+            lastGesture = gesture;
+
+            // --- Canvas Render ---
+            canvasCtx.save();
+            
+            // 1: Grayscale
+            if (gesture === 1) canvasCtx.filter = 'grayscale(100%)';
+            else canvasCtx.filter = 'none';
+
+            // 5: Ghosting/Trails
+            if (gesture === 5) {
+                // Fade effect: Draw semi-transparent background over previous frame
+                // Wait, we need to preserve previous frame. 
+                // We draw new video with low opacity on top? No.
+                // We assume canvas is NOT cleared.
+                // We draw a black rect with 0.2 opacity to fade old trails.
+                // Then draw current video with 0.5 opacity.
+                // But results.image is opaque.
+                // To do true trails:
+                // 1. Draw black rect (alpha 0.2) -> Fades old stuff
+                // 2. Draw current video (alpha 0.5) -> Adds new stuff on top
+                
+                // Note: This relies on not clearing canvas fully.
+                // But typically onResults gives us a fresh slate? No, canvas retains unless cleared.
+                
+                // Standard Clear
+                // canvasCtx.clearRect(0,0,...) -> Don't do this for trails.
+                
+                // Fade out old trails
+                // canvasCtx.fillStyle = 'rgba(0,0,0,0.1)';
+                // canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+                
+                // Draw new video semi-transparent
+                canvasCtx.globalAlpha = 0.1;
+            } else {
+                canvasCtx.globalAlpha = 1.0;
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            }
+
+            // Draw Video
+            canvasCtx.translate(canvasElement.width, 0);
+            canvasCtx.scale(-1, 1);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.restore();
+
+            // 3: Fireworks
+            if (gesture === 3) {
+                if (Math.random() < 0.1) fireworks.push(new Firework(Math.random()*canvasElement.width, Math.random()*canvasElement.height*0.8));
+            }
+            fireworks.forEach(fw => { fw.update(); fw.draw(canvasCtx); });
+            fireworks = fireworks.filter(fw => fw.particles.length > 0);
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 1280, height: 720
+        });
+        camera.start();
+    </script>
+</body>
+</html>

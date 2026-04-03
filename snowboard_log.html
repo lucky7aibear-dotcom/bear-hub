@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Snowboarder Riding Log</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --accent-color: #00e5ff;
+            --stop-color: #ff4081;
+            --record-color: #00e676;
+            --btn-bg: #333;
+            --lift-color: #9c27b0;
+            --warning-color: #ff9800;
+            --error-color: #f44336;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            height: 100dvh; 
+            box-sizing: border-box;
+            overflow: hidden; 
+        }
+
+        header {
+            text-align: center;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #333;
+            flex-shrink: 0; 
+        }
+
+        h1 {
+            font-size: 1.1rem;
+            margin: 0;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 5px;
+        }
+        
+        /* GPS Status Bar */
+        .gps-bar {
+            display: flex;
+            justify-content: space-around;
+            background: #222;
+            padding: 5px;
+            margin-top: 5px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-family: monospace;
+            color: var(--accent-color);
+            transition: color 0.3s, background 0.3s;
+        }
+
+        .gps-lost {
+            color: var(--error-color);
+            border: 1px solid var(--error-color);
+        }
+
+        .gps-weak {
+            color: var(--warning-color);
+        }
+
+        .active-status {
+            color: var(--record-color);
+            font-weight: bold;
+        }
+
+        /* Visualization Area */
+        #visualizer {
+            flex: 1; 
+            background: #1e1e1e;
+            border-radius: 8px;
+            margin: 10px 0;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0; 
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .sensor-values {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            font-family: monospace;
+            font-size: 0.65rem;
+            line-height: 1.2;
+            background: rgba(0,0,0,0.6);
+            padding: 4px;
+            pointer-events: none;
+            color: #ddd;
+            border-radius: 4px;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            height: auto; 
+            padding-bottom: 5px;
+            flex-shrink: 0; 
+        }
+
+        .main-actions {
+            display: flex;
+            gap: 10px;
+            height: 50px;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
+        }
+
+        .btn:active {
+            opacity: 0.7;
+        }
+
+        .btn-ios {
+            background: #444;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 15px;
+            display: none; 
+        }
+
+        .btn-record {
+            background: var(--btn-bg);
+            flex: 1;
+            border: 2px solid var(--record-color);
+            color: var(--record-color);
+            font-size: 1.1rem;
+        }
+
+        .btn-record.recording {
+            background: var(--record-color);
+            color: black;
+            animation: pulse 2s infinite;
+        }
+
+        .btn-download {
+            background: var(--accent-color);
+            color: black;
+            width: 70px;
+        }
+
+        .stance-selector {
+            display: flex;
+            background: #222;
+            border-radius: 8px;
+            padding: 2px;
+            margin-bottom: 5px;
+            flex-shrink: 0;
+        }
+        
+        .stance-btn {
+            flex: 1;
+            background: transparent;
+            color: #666;
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .stance-btn.active {
+            background: #444;
+            color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .label-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .label-btn {
+            background: #333;
+            font-size: 1.1rem;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            padding: 12px 5px; 
+            white-space: nowrap; 
+        }
+
+        .label-btn.active {
+            background: var(--accent-color);
+            color: black;
+            border-color: white;
+            transform: scale(0.98);
+        }
+
+        .label-btn.jump { border-bottom: 4px solid #ffeb3b; }
+        .label-btn.turn { border-bottom: 4px solid #4caf50; }
+        .label-btn.lift { border-bottom: 4px solid var(--lift-color); }
+        .label-btn.idle { border-bottom: 4px solid #9e9e9e; }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 230, 118, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+        }
+
+        .counter {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 5px;
+            flex-shrink: 0;
+            padding-bottom: 5px; 
+        }
+
+        /* --- Modal Styles --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none; 
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: #222;
+            padding: 25px;
+            border-radius: 16px;
+            text-align: center;
+            border: 2px solid var(--accent-color);
+            width: 80%;
+            max-width: 320px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .modal-btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .btn-modal {
+            padding: 15px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            color: #111;
+            cursor: pointer;
+        }
+
+        .btn-clean {
+            background: var(--record-color);
+            box-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+        }
+
+        .btn-crash {
+            background: var(--stop-color);
+            color: white;
+            box-shadow: 0 0 10px rgba(255, 64, 129, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Snowboard Logger V2</h1>
+    <div class="status-bar">
+        <span id="hz-display">0 Hz</span>
+        <span id="status-text">待命</span>
+        <span id="time-display">00:00</span>
+    </div>
+    <!-- GPS Info Bar -->
+    <div id="gps-bar" class="gps-bar">
+        <span id="speed-display">SPD: 0.0</span>
+        <span id="alt-display">ALT: 0</span>
+        <span id="compass-display">DIR: --</span>
+    </div>
+</header>
+
+<div id="visualizer">
+    <canvas id="sensorCanvas"></canvas>
+    <div class="sensor-values" id="debug-values">
+        Waiting for sensors...
+    </div>
+</div>
+
+<button id="ios-btn" class="btn btn-ios">啟用 iOS 感測器權限</button>
+
+<div class="controls">
+    <!-- Stance Selector -->
+    <div class="stance-selector">
+        <button class="stance-btn active" data-stance="Regular">Regular (左前)</button>
+        <button class="stance-btn" data-stance="Goofy">Goofy (右前)</button>
+    </div>
+
+    <!-- Recording Controls -->
+    <div class="main-actions">
+        <button id="record-btn" class="btn btn-record">開始記錄 (REC)</button>
+        <button id="download-btn" class="btn btn-download" disabled>下載</button>
+    </div>
+
+    <!-- Labeling Buttons -->
+    <div class="label-grid">
+        <button class="btn label-btn idle active" data-label="Idle">平地/待機</button>
+        <button class="btn label-btn turn" data-label="Carving">滑行轉彎</button>
+        <button class="btn label-btn jump" data-label="Jump/Trick">跳躍/特技</button>
+        <button class="btn label-btn lift" data-label="Lift/Queue">搭纜車/排隊</button>
+    </div>
+</div>
+
+<div class="counter" id="data-counter">已收集數據點: 0</div>
+
+<!-- Post Run Modal -->
+<div id="summary-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 class="modal-title">這趟滑行狀況如何？</h3>
+        <div class="modal-btn-group">
+            <button class="btn-modal btn-clean" onclick="finalizeRun('CLEAN')">順利完成 (Clean)</button>
+            <button class="btn-modal btn-crash" onclick="finalizeRun('CRASH')">有摔倒 (Crash)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Configuration
+    const TARGET_HZ = 50; 
+    
+    // State
+    let isRecording = false;
+    let startTime = 0;
+    let recordedData = [];
+    let currentLabel = "Idle";
+    let currentStance = "Regular";
+    let lastSampleTime = 0;
+    let runTag = "CLEAN"; 
+    
+    // Sensors
+    let acceleration = { x: 0, y: 0, z: 0 }; 
+    let linearAcceleration = { x: 0, y: 0, z: 0 }; 
+    let rotation = { alpha: 0, beta: 0, gamma: 0 }; 
+    let compassHeading = 0; 
+    let compassDirectionStr = "--"; 
+    let pressureHPa = null; 
+    
+    // GPS State
+    let gpsData = {
+        lat: null,
+        lon: null,
+        alt: null,
+        speed: null, // Init as null
+        accuracy: 0,
+        lastUpdate: 0
+    };
+
+    // UI Elements
+    const recordBtn = document.getElementById('record-btn');
+    const downloadBtn = document.getElementById('download-btn');
+    const statusText = document.getElementById('status-text');
+    const timeDisplay = document.getElementById('time-display');
+    const counterDisplay = document.getElementById('data-counter');
+    const debugValues = document.getElementById('debug-values');
+    const labelBtns = document.querySelectorAll('.label-btn');
+    const stanceBtns = document.querySelectorAll('.stance-btn');
+    const iosBtn = document.getElementById('ios-btn');
+    const summaryModal = document.getElementById('summary-modal');
+    
+    const gpsBar = document.getElementById('gps-bar');
+    const speedDisplay = document.getElementById('speed-display');
+    const altDisplay = document.getElementById('alt-display');
+    const compassDisplay = document.getElementById('compass-display');
+    
+    // Canvas Setup
+    const canvas = document.getElementById('sensorCanvas');
+    const ctx = canvas.getContext('2d');
+    let chartData = new Array(100).fill(0); 
+
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // --- Interaction Logic ---
+    labelBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            labelBtns.forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            currentLabel = e.target.getAttribute('data-label');
+        });
+    });
+
+    stanceBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            stanceBtns.forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            currentStance = e.target.getAttribute('data-stance');
+        });
+    });
+
+    recordBtn.addEventListener('click', () => {
+        if (!isRecording) {
+            startRecording();
+        } else {
+            showSummaryModal();
+        }
+    });
+
+    // iOS Permission
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        iosBtn.style.display = 'block';
+        iosBtn.addEventListener('click', () => {
+            Promise.all([
+                DeviceMotionEvent.requestPermission(),
+                DeviceOrientationEvent.requestPermission()
+            ]).then(responses => {
+                if (responses.every(r => r === 'granted')) {
+                    iosBtn.style.display = 'none';
+                    startSensorListeners();
+                } else {
+                    alert('需要完整的感測器權限才能記錄！');
+                }
+            }).catch(console.error);
+        });
+    } else {
+        startSensorListeners();
+    }
+    
+    startGPSListener();
+    startPressureListener();
+
+    // --- Core Logic ---
+    
+    function getCompassDirection(degrees) {
+        const directions = ['N (北)', 'NE', 'E (東)', 'SE', 'S (南)', 'SW', 'W (西)', 'NW'];
+        const index = Math.round(((degrees %= 360) < 0 ? degrees + 360 : degrees) / 45) % 8;
+        return directions[index];
+    }
+
+    function startGPSListener() {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    gpsData.lat = position.coords.latitude;
+                    gpsData.lon = position.coords.longitude;
+                    gpsData.alt = position.coords.altitude;
+                    gpsData.speed = position.coords.speed;
+                    gpsData.accuracy = position.coords.accuracy;
+                    gpsData.lastUpdate = Date.now();
+                },
+                (error) => {
+                    console.warn("GPS Error: " + error.message);
+                },
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+            );
+        }
+    }
+
+    function startPressureListener() {
+        if ('PressureSensor' in window) {
+            try {
+                // @ts-ignore
+                const sensor = new PressureSensor({ frequency: 10 });
+                sensor.addEventListener('reading', () => {
+                    pressureHPa = sensor.pressure;
+                });
+                sensor.start();
+            } catch (error) { console.log("PressureSensor fail: " + error); }
+        }
+    }
+
+    function startSensorListeners() {
+        window.addEventListener('devicemotion', (event) => {
+            if(event.accelerationIncludingGravity) {
+                acceleration = event.accelerationIncludingGravity;
+            }
+            if(event.acceleration) {
+                linearAcceleration = event.acceleration;
+            }
+        });
+        
+        if ('ondeviceorientationabsolute' in window) {
+            window.addEventListener('deviceorientationabsolute', (event) => {
+                if (event.absolute && event.alpha !== null) {
+                    compassHeading = 360 - event.alpha;
+                    compassDirectionStr = getCompassDirection(compassHeading);
+                }
+            });
+        }
+
+        window.addEventListener('deviceorientation', (event) => {
+            rotation = {
+                alpha: event.alpha || 0,
+                beta: event.beta || 0,
+                gamma: event.gamma || 0
+            };
+
+            if (event.webkitCompassHeading) {
+                compassHeading = event.webkitCompassHeading;
+                compassDirectionStr = getCompassDirection(compassHeading);
+            } 
+            else if (event.absolute && !('ondeviceorientationabsolute' in window)) {
+                 compassHeading = 360 - event.alpha;
+                 compassDirectionStr = getCompassDirection(compassHeading);
+            }
+             else if (!('ondeviceorientationabsolute' in window) && !event.webkitCompassHeading) {
+                 compassHeading = 360 - event.alpha;
+                 compassDirectionStr = getCompassDirection(compassHeading) + "?"; 
+            }
+        });
+
+        drawLoop();
+    }
+
+    function startRecording() {
+        isRecording = true;
+        recordedData = []; 
+        startTime = Date.now();
+        
+        recordBtn.textContent = "停止 (STOP)";
+        recordBtn.classList.add('recording');
+        statusText.textContent = "記錄中...";
+        statusText.classList.add('active-status');
+        downloadBtn.disabled = true;
+        
+        stanceBtns.forEach(b => b.disabled = true);
+    }
+
+    function showSummaryModal() {
+        isRecording = false; 
+        summaryModal.style.display = "flex";
+    }
+
+    window.finalizeRun = function(tag) {
+        runTag = tag;
+        summaryModal.style.display = "none";
+        
+        recordBtn.textContent = "開始記錄 (REC)";
+        recordBtn.classList.remove('recording');
+        statusText.textContent = `已停止 (${tag})`;
+        statusText.classList.remove('active-status');
+        downloadBtn.disabled = false;
+        
+        stanceBtns.forEach(b => b.disabled = false);
+        
+        triggerDownload();
+    };
+
+    function triggerDownload() {
+        if (recordedData.length === 0) {
+            alert("沒有數據可下載");
+            return;
+        }
+        
+        const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
+        const fileName = `snowboard_${currentStance}_${runTag}_${dateStr}.json`; 
+        
+        const finalOutput = {
+            summary: {
+                tag: runTag,
+                stance: currentStance,
+                startTime: new Date(startTime).toISOString(),
+                endTime: new Date().toISOString(),
+                dataPoints: recordedData.length,
+                platform: navigator.platform,
+                note: "Speed=null indicates GPS signal loss (e.g., tunnel)"
+            },
+            data: recordedData
+        };
+        
+        const jsonStr = JSON.stringify(finalOutput, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    downloadBtn.addEventListener('click', () => {
+        triggerDownload();
+    });
+
+    function drawLoop() {
+        const now = Date.now();
+        
+        // --- GPS UI Status Update ---
+        const timeSinceGps = now - gpsData.lastUpdate;
+        let isGpsLost = timeSinceGps > 5000; // >5 sec no update
+        let isGpsWeak = gpsData.accuracy > 50; // >50m accuracy
+        
+        if (isGpsLost) {
+            gpsBar.className = "gps-bar gps-lost";
+            speedDisplay.textContent = "訊號遺失";
+        } else if (isGpsWeak) {
+            gpsBar.className = "gps-bar gps-weak";
+            const speedKmh = (gpsData.speed || 0) * 3.6;
+            speedDisplay.textContent = `SPD: ${speedKmh.toFixed(1)}?`; // Add ?
+        } else {
+            gpsBar.className = "gps-bar";
+            const speedKmh = (gpsData.speed || 0) * 3.6;
+            speedDisplay.textContent = `SPD: ${speedKmh.toFixed(1)} km/h`;
+        }
+        
+        if (gpsData.alt !== null) {
+             altDisplay.textContent = `ALT: ${gpsData.alt.toFixed(0)} m`;
+        }
+
+        // --- Data Recording ---
+        if (isRecording) {
+            const timeSinceLast = now - lastSampleTime;
+            if (timeSinceLast >= (1000 / TARGET_HZ)) {
+                
+                // Decide what speed to record: 
+                // If browser gives null, record null. 
+                // If browser gives 0 but GPS is LOST, record null (better for AI).
+                let recordedSpeed = gpsData.speed;
+                if (isGpsLost && recordedSpeed === 0) {
+                    recordedSpeed = null; // Mark as missing data
+                }
+
+                const dataPoint = {
+                    timestamp: now,
+                    elapsed: now - startTime,
+                    label: currentLabel,
+                    stance: currentStance, 
+                    
+                    acc: { 
+                        x: Number(acceleration.x.toFixed(4)), 
+                        y: Number(acceleration.y.toFixed(4)), 
+                        z: Number(acceleration.z.toFixed(4)) 
+                    },
+                    lin: {
+                        x: Number((linearAcceleration.x || 0).toFixed(4)),
+                        y: Number((linearAcceleration.y || 0).toFixed(4)),
+                        z: Number((linearAcceleration.z || 0).toFixed(4))
+                    },
+                    gyro: { 
+                        alpha: Number(rotation.alpha.toFixed(4)), 
+                        beta: Number(rotation.beta.toFixed(4)), 
+                        gamma: Number(rotation.gamma.toFixed(4)) 
+                    },
+                    compass: Number(compassHeading.toFixed(2)),
+                    
+                    gps: {
+                        lat: gpsData.lat,
+                        lon: gpsData.lon,
+                        alt: gpsData.alt,
+                        speed: recordedSpeed,
+                        accuracy: gpsData.accuracy
+                    },
+                    pressure: pressureHPa
+                };
+                recordedData.push(dataPoint);
+                lastSampleTime = now;
+                
+                if (recordedData.length % 10 === 0) {
+                   counterDisplay.textContent = `已收集數據點: ${recordedData.length}`;
+                   const elapsedSec = Math.floor((now - startTime) / 1000);
+                   const mins = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+                   const secs = String(elapsedSec % 60).padStart(2, '0');
+                   timeDisplay.textContent = `${mins}:${secs}`;
+                }
+            }
+        }
+
+        // Visualization
+        const linMag = Math.sqrt(
+            (linearAcceleration.x || 0)**2 + 
+            (linearAcceleration.y || 0)**2 + 
+            (linearAcceleration.z || 0)**2
+        );
+        
+        compassDisplay.textContent = `DIR: ${Math.round(compassHeading)}° ${compassDirectionStr}`;
+        
+        let pressureStr = pressureHPa ? `${pressureHPa.toFixed(1)} hPa` : "N/A";
+        
+        debugValues.innerHTML = `
+            Stance: ${currentStance}<br>
+            Lin Acc: ${linMag.toFixed(2)} m/s²<br>
+            Compass: ${compassHeading.toFixed(0)}° (${compassDirectionStr})<br>
+            Pressure: ${pressureStr}<br>
+            Label: ${currentLabel}
+        `;
+
+        chartData.push(linMag); 
+        chartData.shift();
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const baselineY = canvas.height - 20; 
+        
+        ctx.beginPath();
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.moveTo(0, baselineY);
+        ctx.lineTo(canvas.width, baselineY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.strokeStyle = isRecording ? '#00e676' : '#00e5ff';
+        ctx.lineWidth = 2;
+        
+        const step = canvas.width / chartData.length;
+        const scale = canvas.height / 20; 
+
+        for (let i = 0; i < chartData.length; i++) {
+            const val = chartData[i];
+            const y = baselineY - (val * scale); 
+            if (i === 0) ctx.moveTo(0, y);
+            else ctx.lineTo(i * step, y);
+        }
+        ctx.stroke();
+
+        requestAnimationFrame(drawLoop);
+    }
+</script>
+
+</body>
+</html>

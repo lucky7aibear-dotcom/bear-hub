@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>空間感測 3D 點雲檢測儀</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 10px;
+            text-align: center; 
+        }
+        h1 { margin-top: 10px; font-size: 1.4rem; }
+        .subtitle { color: #aaa; font-size: 0.8rem; margin-bottom: 10px; }
+        
+        #container-3d { 
+            display: block;
+            width: 100%; 
+            max-width: 600px;
+            height: 450px !important; 
+            background-color: #1a1a1a;
+            border: 2px solid #666;
+            border-radius: 10px;
+            margin: 0 auto 15px auto; 
+            position: relative; 
+            overflow: hidden; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+        }
+        
+        .overlay-text {
+            position: absolute; top: 10px; left: 10px; 
+            font-size: 0.85rem; color: #fff; z-index: 10; 
+            pointer-events: none; text-shadow: 1px 1px 2px black;
+            text-align: left;
+        }
+
+        .data-display {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 0 auto 15px auto;
+            max-width: 600px;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .data-display span { margin: 0 8px; }
+        .x-val { color: #ff6384; }
+        .y-val { color: #36a2eb; }
+        .z-val { color: #cc65fe; }
+        .count-val { color: #00ffcc; display: block; margin-top: 10px;}
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin: 0 auto 15px auto;
+            max-width: 600px;
+            justify-content: center;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            font-size: 1.05rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            flex: 1;
+        }
+        button:active { transform: scale(0.98); }
+        .calib-btn { background-color: #ff9800; display: none; }
+        .clear-btn { background-color: #f44336; }
+        .export-btn { background-color: #2196F3; }
+
+        #error-msg { color: #ffaa00; margin: 10px auto; font-size: 0.9rem; max-width: 600px; line-height: 1.4;}
+        #calib-status { color: #00ffcc; font-weight: bold; margin-bottom: 10px; display: none; font-size: 1.1rem;}
+        
+        #chart-container { 
+            display: block;
+            width: 100%; 
+            max-width: 600px;
+            height: 180px; 
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 10px;
+            margin: 0 auto 20px auto;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>✨ 空間點雲即時檢測儀</h1>
+    <div class="subtitle" id="mode-text">準備讀取感測器...</div>
+    
+    <!-- 3D 區塊 -->
+    <div id="container-3d">
+        <div class="overlay-text">
+            3D 點狀圖 (最新 5000 筆)<br>
+            <span style="font-size: 0.75rem; color:#aaa;">👆 單指旋轉、雙指縮放視角</span>
+        </div>
+    </div>
+
+    <!-- 狀態區 -->
+    <div id="calib-status">校正中：請畫 8 字型... 剩餘 <span id="calib-time">30</span> 秒</div>
+    
+    <div class="data-display" id="data-display" style="display: none;">
+        <span class="x-val">X: <span id="valX">0.0</span></span>
+        <span class="y-val">Y: <span id="valY">0.0</span></span>
+        <span class="z-val">Z: <span id="valZ">0.0</span></span>
+        <span class="count-val">總計: <span id="absoluteCount">0</span> 筆</span>
+    </div>
+
+    <!-- 按鈕區 上排 -->
+    <div class="btn-group" id="btn-group-main">
+        <button id="startButton">🚀 啟動</button>
+        <button id="calibButton" class="calib-btn">♾️ 8 字校正</button>
+    </div>
+
+    <!-- 按鈕區 下排 (清除與匯出) -->
+    <div class="btn-group" id="btn-group-actions" style="display: none;">
+        <button id="clearButton" class="clear-btn">🗑️ 清除軌跡</button>
+        <button id="exportButton" class="export-btn">💾 匯出 CSV</button>
+    </div>
+
+    <div id="error-msg"></div>
+
+    <!-- 折線圖 -->
+    <div id="chart-container">
+        <canvas id="magChart"></canvas>
+    </div>
+
+<script>
+    // --- 1. 2D 橫軸折線圖 ---
+    const ctx = document.getElementById('magChart').getContext('2d');
+    const maxDataPoints = 100;
+    const magChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array(maxDataPoints).fill(''),
+            datasets: [
+                { label: 'X', borderColor: '#ff6384', data: Array(maxDataPoints).fill(0), borderWidth: 2, pointRadius: 0, tension: 0.2 },
+                { label: 'Y', borderColor: '#36a2eb', data: Array(maxDataPoints).fill(0), borderWidth: 2, pointRadius: 0, tension: 0.2 },
+                { label: 'Z', borderColor: '#cc65fe', data: Array(maxDataPoints).fill(0), borderWidth: 2, pointRadius: 0, tension: 0.2 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: { y: { grid: { color: '#333' } }, x: { grid: { display: false } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // --- 2. 3D 初始化 ---
+    let scene, camera, renderer, controls, geometry, positions;
+    let currentPointMesh, calibSphereMesh;
+    const MAX_POINTS = 5000;
+    const container3D = document.getElementById('container-3d');
+    
+    // 用來儲存所有的原始數據，用於匯出
+    let allExportData = [];
+
+    try {
+        scene = new THREE.Scene();
+        
+        camera = new THREE.PerspectiveCamera(45, container3D.clientWidth / container3D.clientHeight, 0.1, 3000);
+        camera.position.set(150, 150, 150); 
+        
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(container3D.clientWidth, container3D.clientHeight);
+        container3D.appendChild(renderer.domElement);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        scene.add(new THREE.AxesHelper(200));
+
+        positions = new Float32Array(MAX_POINTS * 3);
+        geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
+        const material = new THREE.PointsMaterial({ color: 0x00ffcc, size: 8, transparent: true, opacity: 0.8 });
+        scene.add(new THREE.Points(geometry, material));
+
+        currentPointMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(6, 16, 16), 
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        );
+        scene.add(currentPointMesh);
+
+        function render3D() {
+            controls.update();
+            renderer.render(scene, camera);
+            requestAnimationFrame(render3D);
+        }
+        render3D();
+
+    } catch (e) {
+        document.getElementById('error-msg').innerText = "3D 引擎初始化失敗: " + e.message;
+    }
+
+    let pointIndex = 0, totalPointsInArray = 0, absoluteTotalPoints = 0; 
+    let firstPointSet = false, isCalibrating = false, calibData = [];
+
+    function updateData(x, y, z) {
+        document.getElementById('valX').innerText = x.toFixed(1);
+        document.getElementById('valY').innerText = y.toFixed(1);
+        document.getElementById('valZ').innerText = z.toFixed(1);
+        document.getElementById('absoluteCount').innerText = ++absoluteTotalPoints;
+
+        // 記錄原始數據用於匯出 CSV (不經過 scaleFactor 放大)
+        allExportData.push({ time: Date.now(), x: x, y: y, z: z });
+
+        magChart.data.datasets[0].data.shift(); magChart.data.datasets[0].data.push(x);
+        magChart.data.datasets[1].data.shift(); magChart.data.datasets[1].data.push(y);
+        magChart.data.datasets[2].data.shift(); magChart.data.datasets[2].data.push(z);
+        magChart.update();
+
+        if(!geometry) return;
+
+        let scaleFactor = 2.0; 
+        let visualX = x * scaleFactor, visualY = y * scaleFactor, visualZ = z * scaleFactor;
+
+        if(!firstPointSet) {
+            controls.target.set(visualX, visualY, visualZ);
+            camera.position.set(visualX + 150, visualY + 100, visualZ + 150);
+            firstPointSet = true;
+        }
+
+        if (isCalibrating) calibData.push(new THREE.Vector3(visualX, visualY, visualZ));
+
+        positions[pointIndex * 3] = visualX;
+        positions[pointIndex * 3 + 1] = visualY;
+        positions[pointIndex * 3 + 2] = visualZ;
+
+        currentPointMesh.position.set(visualX, visualY, visualZ);
+
+        pointIndex = (pointIndex + 1) % MAX_POINTS;
+        if (totalPointsInArray < MAX_POINTS) totalPointsInArray++;
+
+        geometry.setDrawRange(0, totalPointsInArray);
+        geometry.attributes.position.needsUpdate = true;
+    }
+
+    // 清除軌跡按鈕
+    document.getElementById('clearButton').addEventListener('click', () => {
+        pointIndex = 0;
+        totalPointsInArray = 0;
+        absoluteTotalPoints = 0;
+        allExportData = [];
+        firstPointSet = false; // 讓下一個點重新對焦
+        
+        document.getElementById('absoluteCount').innerText = '0';
+        
+        // 清除 2D 圖表
+        magChart.data.datasets.forEach(dataset => {
+            dataset.data = Array(maxDataPoints).fill(0);
+        });
+        magChart.update();
+
+        // 清除 3D 點雲
+        geometry.setDrawRange(0, 0);
+        geometry.attributes.position.needsUpdate = true;
+        positions.fill(0);
+
+        // 清除校正球體
+        if (calibSphereMesh) {
+            scene.remove(calibSphereMesh);
+            calibSphereMesh = null;
+        }
+    });
+
+    // 匯出 CSV 按鈕
+    document.getElementById('exportButton').addEventListener('click', () => {
+        if (allExportData.length === 0) {
+            alert("目前沒有資料可以匯出喔！");
+            return;
+        }
+        
+        // 組合 CSV 內容
+        let csvContent = "Timestamp_ms,X,Y,Z\n";
+        allExportData.forEach(row => {
+            csvContent += `${row.time},${row.x.toFixed(4)},${row.y.toFixed(4)},${row.z.toFixed(4)}\n`;
+        });
+        
+        // 建立 Blob 與下載連結
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        // 設定檔名包含當前時間
+        const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
+        link.setAttribute("download", `mag_sensor_data_${dateStr}.csv`);
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    document.getElementById('startButton').addEventListener('click', async () => {
+        document.getElementById('startButton').style.display = 'none';
+        document.getElementById('calibButton').style.display = 'inline-block';
+        document.getElementById('btn-group-actions').style.display = 'flex';
+        document.getElementById('data-display').style.display = 'block';
+        
+        let usingMagnetometer = false;
+
+        if ('Magnetometer' in window) {
+            try {
+                const permissionStatus = await navigator.permissions.query({ name: 'magnetometer' });
+                if (permissionStatus.state !== 'denied') {
+                    const sensor = new Magnetometer({ frequency: 30 });
+                    sensor.addEventListener('reading', () => {
+                        document.getElementById('mode-text').innerText = "訊號源：Magnetometer (μT)";
+                        updateData(sensor.x || 0, sensor.y || 0, sensor.z || 0);
+                    });
+                    sensor.start();
+                    usingMagnetometer = true;
+                    return;
+                }
+            } catch (e) {}
+        }
+        
+        if (!usingMagnetometer) {
+            document.getElementById('mode-text').innerText = "訊號源：空間方向感測器 (Deg)";
+            document.getElementById('error-msg').innerText = "提示：未開放原生磁力計 API，已切換為空間方向角度。";
+            
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const permissionState = await DeviceOrientationEvent.requestPermission();
+                    if (permissionState !== 'granted') return;
+                } catch (e) {}
+            }
+
+            window.addEventListener('deviceorientation', (event) => {
+                updateData(event.beta || 0, event.gamma || 0, (event.alpha || 0) - 180);
+            });
+        }
+    });
+
+    document.getElementById('calibButton').addEventListener('click', () => {
+        if(isCalibrating) return;
+        
+        if (calibSphereMesh) {
+            scene.remove(calibSphereMesh);
+            calibSphereMesh = null;
+        }
+
+        isCalibrating = true;
+        calibData = [];
+        let timeLeft = 30;
+
+        document.getElementById('calibButton').disabled = true;
+        document.getElementById('calib-status').style.display = 'block';
+        document.getElementById('calib-time').innerText = timeLeft;
+
+        const timer = setInterval(() => {
+            timeLeft--;
+            document.getElementById('calib-time').innerText = timeLeft;
+
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                isCalibrating = false;
+                document.getElementById('calibButton').disabled = false;
+                document.getElementById('calib-status').style.display = 'none';
+                
+                if (calibData.length > 0) {
+                    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+                    calibData.forEach(p => {
+                        if(p.x < minX) minX = p.x; if(p.x > maxX) maxX = p.x;
+                        if(p.y < minY) minY = p.y; if(p.y > maxY) maxY = p.y;
+                        if(p.z < minZ) minZ = p.z; if(p.z > maxZ) maxZ = p.z;
+                    });
+
+                    let center = new THREE.Vector3((minX+maxX)/2, (minY+maxY)/2, (minZ+maxZ)/2);
+                    let totalDist = 0;
+                    calibData.forEach(p => { totalDist += p.distanceTo(center); });
+                    let radius = totalDist / calibData.length;
+
+                    const sphereGeo = new THREE.SphereGeometry(radius, 32, 32);
+                    calibSphereMesh = new THREE.Mesh(
+                        sphereGeo, 
+                        new THREE.MeshBasicMaterial({ color: 0x0088ff, transparent: true, opacity: 0.3, wireframe: true })
+                    );
+                    calibSphereMesh.position.copy(center);
+                    calibSphereMesh.add(new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x00aaff, transparent: true, opacity: 0.1 })));
+                    scene.add(calibSphereMesh);
+                }
+            }
+        }, 1000);
+    });
+</script>
+
+</body>
+</html>

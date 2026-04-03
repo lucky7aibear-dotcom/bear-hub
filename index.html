@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bear's Hub | 專屬實驗室</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.5);
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin: 0 0 10px 0;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            margin: 0;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            width: 100%;
+            max-width: 1000px;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 25px;
+            text-decoration: none;
+            color: var(--text-main);
+            border: 1px solid #334155;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5), 0 0 15px var(--accent-glow);
+            border-color: #475569;
+        }
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .card-desc {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+            flex-grow: 1;
+        }
+
+        .card.empty {
+            border: 2px dashed #334155;
+            background: transparent;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            opacity: 0.7;
+            cursor: pointer;
+        }
+        .card.empty:hover {
+            border-color: var(--text-muted);
+            opacity: 1;
+            box-shadow: none;
+            transform: scale(1.02);
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Bear's Hub</h1>
+        <p>歡迎來到專屬的科技實驗大廳</p>
+    </div>
+
+    <div class="grid" id="project-grid">
+        <!-- 專案 1 -->
+        <a href="mag_sensor.html" class="card">
+            <div class="card-icon">🧲</div>
+            <div class="card-title">空間點雲檢測儀</div>
+            <div class="card-desc">利用裝置感測器讀取 3D 空間角度，支援 8 字校正與點雲歷史軌跡渲染。</div>
+        </a>
+
+        <!-- 等待加入的舊專案 -->
+        <div class="card empty" onclick="alert('請把舊的 HTML 檔案交給 Faye，她會自動幫你上架到這裡！')">
+            <div class="card-icon">➕</div>
+            <div class="card-title">新增專案</div>
+            <div class="card-desc">點擊通知 Faye 擴充大廳...</div>
+        </div>
+    </div>
+
+</body>
+</html>

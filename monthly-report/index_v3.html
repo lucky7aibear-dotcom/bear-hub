@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Monthly newsletter generator, easily produce beautiful emails suitable for Gmail. (Version 3 - Built-in API Key)">
+    <title>Newsletter Generator v3</title>
+    <link rel="stylesheet" href="style_v2.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<style>
+#password-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #0f172a;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-family: sans-serif;
+}
+#password-overlay input {
+    padding: 10px; font-size: 16px; margin: 10px 0;
+    border-radius: 5px; border: none; text-align: center;
+}
+#password-overlay button {
+    padding: 10px 20px; font-size: 16px; background: #38bdf8;
+    color: white; border: none; border-radius: 5px; cursor: pointer;
+}
+#password-overlay button:hover { background: #0284c7; }
+</style>
+<div id="password-overlay">
+    <h2>請輸入存取密碼</h2>
+    <p>此版本包含進階 API，需驗證身份</p>
+    <input type="password" id="access-pwd" placeholder="輸入密碼">
+    <button onclick="checkPwd()">解鎖</button>
+    <p id="pwd-error" style="color: #ef4444; display: none;">密碼錯誤</p>
+</div>
+<script>
+function checkPwd() {
+    if(document.getElementById('access-pwd').value === '7297') {
+        document.getElementById('password-overlay').style.display = 'none';
+    } else {
+        document.getElementById('pwd-error').style.display = 'block';
+    }
+}
+</script>
+
+    <div class="app-container">
+        <aside class="sidebar">
+            <h1 id="app-title">Newsletter Generator</h1>
+            <p class="subtitle">Enter tasks, generate beautiful emails instantly</p>
+            
+            <form id="newsletter-form" onsubmit="event.preventDefault();">
+                <!-- 基本資訊 -->
+                <div class="form-group">
+                    <label for="input-month">Month / Date</label>
+                    <input type="text" id="input-month" placeholder="e.g., April 2026" required>
+                </div>
+                
+                <!-- 完成任務 -->
+                <div class="form-group">
+                    <label>Accomplished Tasks</label>
+                    <div id="categories-container">
+                        <!-- 動態新增類別與任務 -->
+                    </div>
+                    <button type="button" id="add-category-btn" class="btn-text">+ Add Task Category</button>
+                </div>
+                
+                <!-- 關鍵數據 -->
+                <div class="form-group">
+                    <label>Key Metrics (Optional)</label>
+                    <div id="metrics-container">
+                        <!-- 動態新增數據 -->
+                    </div>
+                    <button type="button" id="add-metric-btn" class="btn-text">+ Add Metric</button>
+                </div>
+                
+                <!-- 下個月計畫 -->
+                <div class="form-group">
+                    <label>Next Month's Plan</label>
+                    <div id="plans-container">
+                        <!-- 動態新增計畫 -->
+                    </div>
+                    <button type="button" id="add-plan-btn" class="btn-text">+ Add Plan</button>
+                </div>
+                
+                <!-- 本月趣事 -->
+                <div class="form-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <label for="input-fun" style="margin-bottom: 0;">Fun Findings (Optional)</label>
+                        <div>
+                            <button type="button" id="ai-expand-fun-btn" class="btn-text" style="color: var(--secondary); font-size: 12px; margin-right: 10px;">✨ AI Polish</button>
+                            <button type="button" id="ai-translate-fun-btn" class="btn-text" style="color: var(--primary); font-size: 12px;">🌐 Translate</button>
+                        </div>
+                    </div>
+                    <textarea id="input-fun" rows="4" placeholder="Share anything interesting or new findings from this month..."></textarea>
+                </div>
+            </form>
+        </aside>
+        
+        <main class="preview-area">
+            <div class="preview-header">
+                <h2>Newsletter Preview</h2>
+                <div class="actions">
+                    <button id="generate-btn" class="btn primary">Generate Preview</button>
+                    <button id="copy-btn" class="btn secondary">Copy to Clipboard</button>
+                </div>
+            </div>
+            <div class="preview-window">
+                <div id="preview-content" class="preview-content">
+                    <div class="placeholder-text">Fill in the form on the left and click 'Generate Preview'...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="script_v3.js"></script>
+</body>
+</html>

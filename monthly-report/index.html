@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Monthly newsletter generator, easily produce beautiful emails suitable for Gmail.">
+    <title>Monthly Newsletter Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <h1 id="app-title">Newsletter Generator</h1>
+            <p class="subtitle">Enter tasks, generate beautiful emails instantly</p>
+            
+            <form id="newsletter-form" onsubmit="event.preventDefault();">
+                <!-- API 設定 -->
+                <div class="form-group settings-group" style="margin-bottom: 20px; background: rgba(255,255,255,0.3); padding: 10px; border-radius: 8px;">
+                    <details>
+                        <summary style="font-size: 14px; font-weight: 600; cursor: pointer; color: var(--text-color);">⚙️ API Settings (Gemini)</summary>
+                        <div class="settings-content" style="padding-top: 10px;">
+                            <label for="api-key-input" style="font-size: 12px;">API Key</label>
+                            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                                <input type="password" id="api-key-input" placeholder="Enter your API Key" style="flex: 1; padding: 8px;">
+                                <button type="button" id="save-api-key-btn" class="btn secondary" style="padding: 8px 12px; font-size: 12px;">Save</button>
+                            </div>
+                            <span id="api-key-status" style="font-size: 12px; color: #10b981; margin-top: 5px; display: block;"></span>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- 基本資訊 -->
+                <div class="form-group">
+                    <label for="input-month">Month / Date</label>
+                    <input type="text" id="input-month" placeholder="e.g., April 2026" required>
+                </div>
+                
+                <!-- 完成任務 -->
+                <div class="form-group">
+                    <label>Accomplished Tasks</label>
+                    <div id="categories-container">
+                        <!-- 動態新增類別與任務 -->
+                    </div>
+                    <button type="button" id="add-category-btn" class="btn-text">+ Add Task Category</button>
+                </div>
+                
+                <!-- 關鍵數據 -->
+                <div class="form-group">
+                    <label>Key Metrics (Optional)</label>
+                    <div id="metrics-container">
+                        <!-- 動態新增數據 -->
+                    </div>
+                    <button type="button" id="add-metric-btn" class="btn-text">+ Add Metric</button>
+                </div>
+                
+                <!-- 下個月計畫 -->
+                <div class="form-group">
+                    <label>Next Month's Plan</label>
+                    <div id="plans-container">
+                        <!-- 動態新增計畫 -->
+                    </div>
+                    <button type="button" id="add-plan-btn" class="btn-text">+ Add Plan</button>
+                </div>
+                
+                <!-- 本月趣事 -->
+                <div class="form-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <label for="input-fun" style="margin-bottom: 0;">Fun Findings (Optional)</label>
+                        <div>
+                            <button type="button" id="ai-expand-fun-btn" class="btn-text" style="color: var(--secondary); font-size: 12px; margin-right: 10px;">✨ AI Polish</button>
+                            <button type="button" id="ai-translate-fun-btn" class="btn-text" style="color: var(--primary); font-size: 12px;">🌐 Translate</button>
+                        </div>
+                    </div>
+                    <textarea id="input-fun" rows="4" placeholder="Share anything interesting or new findings from this month..."></textarea>
+                </div>
+            </form>
+        </aside>
+        
+        <main class="preview-area">
+            <div class="preview-header">
+                <h2>Newsletter Preview</h2>
+                <div class="actions">
+                    <button id="generate-btn" class="btn primary">Generate Preview</button>
+                    <button id="copy-btn" class="btn secondary">Copy to Clipboard</button>
+                </div>
+            </div>
+            <div class="preview-window">
+                <div id="preview-content" class="preview-content">
+                    <div class="placeholder-text">Fill in the form on the left and click 'Generate Preview'...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

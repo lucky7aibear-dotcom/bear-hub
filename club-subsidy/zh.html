@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社團經費視覺化模擬器 v4</title>
+    <!-- 引入 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            background: #fff;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        h2 {
+            width: 100%;
+            text-align: center;
+            color: #1877f2;
+            margin-top: 0;
+        }
+
+        /* 左側控制區 */
+        .controls {
+            flex: 1;
+            min-width: 300px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .val-display {
+            color: #1877f2;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        /* 右側圖表與數據區 */
+        .dashboard {
+            flex: 2;
+            min-width: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .stat-card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e4e6eb;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #65676b;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .text-blue {
+            color: #1877f2;
+        }
+
+        .text-red {
+            color: #d70015;
+        }
+
+        .alert-box {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>📊 社團經費視覺化模擬器</h2>
+
+        <!-- 左側拉桿控制區 -->
+        <div class="controls">
+            <div class="form-group">
+                <label>最高補助比例 <span class="val-display"><span id="valRatio">80</span>%</span></label>
+                <input type="range" id="paramRatio" min="50" max="100" value="80" oninput="updateAll()">
+            </div>
+            <div class="form-group">
+                <label>核心花費防線 <span class="val-display"><span id="valCore">65</span>%</span></label>
+                <input type="range" id="paramCore" min="30" max="100" value="65" oninput="updateAll()">
+            </div>
+            <hr style="border: 0; border-top: 1px solid #ddd; margin: 20px 0;">
+            <div class="form-group">
+                <label>實際出席人數 <span class="val-display"><span id="valAtt">20</span> 人</span></label>
+                <input type="range" id="attendees" min="1" max="150" value="20" oninput="updateAll()">
+            </div>
+            <div class="form-group">
+                <label>社團相關費用 (核心) <span class="val-display">$<span id="valRel">15000</span></span></label>
+                <input type="range" id="relatedCost" min="0" max="300000" step="500" value="15000"
+                    oninput="updateAll()">
+            </div>
+            <div class="form-group">
+                <label>其它費用 (非核心) <span class="val-display">$<span id="valOth">5000</span></span></label>
+                <input type="range" id="otherCost" min="0" max="100000" step="500" value="5000" oninput="updateAll()">
+            </div>
+        </div>
+
+        <!-- 右側圖表與數據區 -->
+        <div class="dashboard">
+            <div class="chart-container">
+                <canvas id="myChart"></canvas>
+            </div>
+
+            <div id="alertMsg" class="alert-box"></div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">核准補助總額</div>
+                    <div class="stat-value text-blue" id="resSubsidy">$0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">社團自付總額</div>
+                    <div class="stat-value text-red" id="resSelf">$0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">平均每人受補助</div>
+                    <div class="stat-value text-blue" id="avgSubsidy">$0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">平均每人需自付</div>
+                    <div class="stat-value text-red" id="avgSelf">$0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chartInstance = null;
+
+        function initChart() {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['支出結構 (總花費)', '資金來源 (誰出錢)'],
+                    datasets: [
+                        { label: '相關費用 (核心)', backgroundColor: '#3498db', data: [0, 0] },
+                        { label: '其它費用 (非核心)', backgroundColor: '#95a5a6', data: [0, 0] },
+                        { label: '核准補助 (公司出)', backgroundColor: '#2ecc71', data: [0, 0] },
+                        { label: '社團自付 (自己出)', backgroundColor: '#e74c3c', data: [0, 0] }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true }
+                    },
+                    plugins: {
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+        }
+
+        function updateAll() {
+            // 1. 取得數值
+            const ratio = parseInt(document.getElementById('paramRatio').value);
+            const core = parseInt(document.getElementById('paramCore').value);
+            const att = parseInt(document.getElementById('attendees').value);
+            const rel = parseInt(document.getElementById('relatedCost').value);
+            const oth = parseInt(document.getElementById('otherCost').value);
+
+            // 更新畫面數字顯示
+            document.getElementById('valRatio').innerText = ratio;
+            document.getElementById('valCore').innerText = core;
+            document.getElementById('valAtt').innerText = att;
+            document.getElementById('valRel').innerText = rel.toLocaleString();
+            document.getElementById('valOth').innerText = oth.toLocaleString();
+
+            // 2. 邏輯計算
+            const total = rel + oth;
+            const limit1 = total * (ratio / 100);
+            const limit2 = att * 1000;
+            const limit3 = (core > 0) ? (rel / (core / 100)) : total;
+
+            let finalSubsidy = 0;
+            if (total > 0) {
+                finalSubsidy = Math.floor(Math.min(limit1, limit2, limit3));
+            }
+            const selfPay = total - finalSubsidy;
+
+            // 3. 更新下方卡片數據
+            document.getElementById('resSubsidy').innerText = '$' + finalSubsidy.toLocaleString();
+            document.getElementById('resSelf').innerText = '$' + selfPay.toLocaleString();
+            document.getElementById('avgSubsidy').innerText = '$' + Math.floor(finalSubsidy / att).toLocaleString();
+            document.getElementById('avgSelf').innerText = '$' + Math.ceil(selfPay / att).toLocaleString();
+
+            // 4. 更新警告框
+            const alertBox = document.getElementById('alertMsg');
+            if (total > 0 && finalSubsidy === Math.floor(limit3) && limit3 < limit1 && limit3 < limit2) {
+                alertBox.innerText = "⚠️ 核心費用不足，補助金額已被強制調降！";
+                alertBox.style.display = "block";
+                alertBox.style.backgroundColor = "#ffeaa7";
+                alertBox.style.color = "#d63031";
+            } else {
+                alertBox.style.display = "none";
+            }
+
+            // 5. 更新圖表
+            // 第一根柱子：支出結構 [相關費用, 其它費用, 0, 0] -> 只有前兩個有值
+            // 第二根柱子：資金來源 [0, 0, 核准補助, 社團自付] -> 只有後兩個有值
+            chartInstance.data.datasets[0].data = [rel, 0];
+            chartInstance.data.datasets[1].data = [oth, 0];
+            chartInstance.data.datasets[2].data = [0, finalSubsidy];
+            chartInstance.data.datasets[3].data = [0, selfPay];
+            chartInstance.update();
+        }
+
+        // 網頁載入時初始化
+        window.onload = function () {
+            initChart();
+            updateAll();
+        };
+    </script>
+
+</body>
+
+</html>

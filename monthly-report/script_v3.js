@@ -1,4 +1,4 @@
-const API_KEY = 'AIzaSyA82R71I7MF7yjb0sltr49lzBWP-_QXS60';
+
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize default inputs
@@ -315,7 +315,7 @@ async function handleAIExpand(inputElement, type, buttonElement) {
             prompt = `請將以下關於月報內容的簡短關鍵字或描述，先進行內容的優化與擴充（語氣專業、正面且流暢），並直接翻譯成適當的英文內容，適合放進英文商業月報中："${text}"`;
         }
         
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+        const response = await fetch('https://gemini123.lucky7-bear.workers.dev/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

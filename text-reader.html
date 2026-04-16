@@ -159,7 +159,7 @@
             statusEl.innerText = "正在載入 OCR 模型 (首次載入需幾秒鐘)...";
             startBtn.disabled = true;
             try {
-                worker = await Tesseract.createWorker('eng+chi_tra');
+                worker = await Tesseract.createWorker('chi_tra+eng');
                 statusEl.innerText = "模型載入完成！正在掃描...";
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'block';
@@ -187,9 +187,25 @@
 
             try {
                 statusEl.innerText = "🔍 辨識中...";
-                const { data: { text } } = await worker.recognize(canvas);
+                const { data: { text } } = await worker.recognize(canvas, {
+                    tessjs_create_pdf: '0',
+                    tessjs_create_hocr: '0',
+                    tessedit_pageseg_mode: Tesseract.PSM.AUTO
+                });
                 
-                const cleanText = text.replace(/\s+/g, ' ').trim();
+                
+                // 過濾掉太多無意義的單一字母和奇怪的符號，保留正常的中英文
+                let cleanText = text.replace(/[^a-zA-Z一-龥\s.,!?-]/g, ' ')
+                                    .replace(/\s+/g, ' ')
+                                    .trim();
+                                    
+                // 嘗試把連續的零散大寫字母當作雜訊過濾掉，但保留正常單字
+                cleanText = cleanText.split(' ').filter(word => {
+                    // 如果是一個字元的英文，且不是 a, A, i, I，有很高機率是雜訊
+                    if(word.length === 1 && /[b-hj-zB-HJ-Z]/.test(word)) return false;
+                    return true;
+                }).join(' ');
+
                 
                 // 過濾雜訊與重複文字
                 if (cleanText.length > 1 && cleanText !== lastReadText) {

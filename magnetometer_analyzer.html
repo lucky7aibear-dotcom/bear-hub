@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高級磁力計數據分析儀 (Standalone)</title>
+    <!-- CDNs -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #020617 100%);
+            --card-bg: rgba(30, 41, 59, 0.4);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #00f2fe;
+            --accent-glow: rgba(0, 242, 254, 0.3);
+            --border: rgba(255, 255, 255, 0.05);
+            --grid-color: rgba(255, 255, 255, 0.05);
+            --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        body.light-mode {
+            --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent: #0284c7;
+            --accent-glow: rgba(2, 132, 199, 0.2);
+            --border: rgba(0, 0, 0, 0.05);
+            --grid-color: rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header & Glassmorphism */
+        header {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #00f2fe, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #020617;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: #00c6ff;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        /* Upload Area */
+        .upload-area {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 2px dashed var(--border);
+            border-radius: 24px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover, .upload-area.drag-over {
+            border-color: var(--accent);
+            background: rgba(0, 242, 254, 0.05);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            color: var(--accent);
+        }
+
+        .upload-text h3 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .upload-text p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Chart Containers */
+        .chart-div {
+            width: 100%;
+            height: 600px; /* Adjust height as needed */
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+        }
+
+        .chart-3d-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .chart-3d-div {
+            flex: 2;
+            min-width: 600px;
+            height: 500px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+        }
+
+        .side-panel {
+            flex: 1;
+            min-width: 300px;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+
+        /* Inputs and Controls */
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        input[type="number"] {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px;
+            border-radius: 8px;
+            width: 70px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+
+        input[type="number"]:focus {
+            border-color: var(--accent);
+            outline: none;
+            box-shadow: 0 0 5px var(--accent-glow);
+        }
+
+        /* Status Info */
+        .info-text {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .info-text b {
+            color: var(--text-primary);
+        }
+
+        /* Hidden File Input */
+        #file-input {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .chart-3d-container {
+                flex-direction: column;
+            }
+            .chart-3d-div {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <div>
+                <h1>磁力計數據分析儀</h1>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 4px;">動態球體擬合與 3D 視覺化工具</p>
+            </div>
+            <div class="controls">
+                <button class="btn" id="theme-toggle">🌓 切換主題</button>
+                <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">📂 載入檔案</button>
+            </div>
+        </header>
+
+        <!-- Upload Area -->
+        <div class="upload-area" id="drop-area" onclick="document.getElementById('file-input').click()">
+            <div class="upload-icon">📥</div>
+            <div class="upload-text">
+                <h3>點擊或拖放檔案至此處</h3>
+                <p>支援 .csv 與 .txt 格式 (自動偵測 v6 規範)</p>
+            </div>
+            <input type="file" id="file-input" accept=".csv,.txt">
+        </div>
+
+        <!-- Dashboard (Initially Hidden or Empty) -->
+        <div class="dashboard-grid" id="dashboard" style="display: none;">
+            
+            <!-- 2D Time Series Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📈 時間序列數據 (時間軸同步)</div>
+                    <div id="file-name-display" class="info-text"></div>
+                </div>
+                <div id="chart_2d" class="chart-div" style="height: 800px;"></div>
+            </div>
+
+            <!-- Sensor 2 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔮 Calibrated Magnetometer (ID 2)</div>
+                </div>
+                <div class="chart-3d-container">
+                    <div id="chart3d_2" class="chart-3d-div"></div>
+                    <div class="side-panel">
+                        <h4 style="margin-bottom: 12px; font-size: 1rem;">球體擬合數據</h4>
+                        <div id="sphere_info_2" class="info-text">
+                            <p>請載入資料並縮放時間軸以計算...</p>
+                        </div>
+                        
+                        <div style="margin-top: 16px;">
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">手動微調:</p>
+                            <div class="input-group">
+                                <input id="input_cx_2" type="number" step="0.1" placeholder="CX">
+                                <input id="input_cy_2" type="number" step="0.1" placeholder="CY">
+                                <input id="input_cz_2" type="number" step="0.1" placeholder="CZ">
+                                <input id="input_r_2" type="number" step="0.1" placeholder="R">
+                            </div>
+                            <div class="input-group">
+                                <button class="btn" style="flex: 1;" id="btn_apply_2">套用</button>
+                                <button class="btn" style="flex: 1;" id="btn_reset_2">自動</button>
+                            </div>
+                            <button class="btn btn-primary" style="width: 100%; margin-top: 8px;" id="btn_lock_2">🔒 鎖定擬合</button>
+                        </div>
+
+                        <div style="margin-top: 16px;">
+                            <h4 style="font-size: 0.9rem; margin-bottom: 8px;">設備方向參考</h4>
+                            <div id="chart3d_ref_2" style="height: 200px; background: rgba(0,0,0,0.2); border-radius: 12px;"></div>
+                            <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center;">
+                                <button class="btn" id="btn_play_2">▶ 播放</button>
+                                <button class="btn" id="btn_pause_2">⏸ 暫停</button>
+                                <select id="speed_2" style="background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 6px;">
+                                    <option value="0.5">0.5x</option>
+                                    <option value="1" selected>1x</option>
+                                    <option value="2">2x</option>
+                                    <option value="5">5x</option>
+                                </select>
+                                <span id="play_status_2" style="font-size: 0.8rem; color: var(--text-secondary);">Stop</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 2D Projections -->
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <div id="chart2d_2_xy" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                    <div id="chart2d_2_xz" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                    <div id="chart2d_2_yz" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                </div>
+            </div>
+
+            <!-- Sensor 14 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔮 Uncalibrated Magnetometer (ID 14)</div>
+                </div>
+                <div class="chart-3d-container">
+                    <div id="chart3d_14" class="chart-3d-div"></div>
+                    <div class="side-panel">
+                        <h4 style="margin-bottom: 12px; font-size: 1rem;">球體擬合數據</h4>
+                        <div id="sphere_info_14" class="info-text">
+                            <p>請載入資料並縮放時間軸以計算...</p>
+                        </div>
+                        
+                        <div style="margin-top: 16px;">
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">手動微調:</p>
+                            <div class="input-group">
+                                <input id="input_cx_14" type="number" step="0.1" placeholder="CX">
+                                <input id="input_cy_14" type="number" step="0.1" placeholder="CY">
+                                <input id="input_cz_14" type="number" step="0.1" placeholder="CZ">
+                                <input id="input_r_14" type="number" step="0.1" placeholder="R">
+                            </div>
+                            <div class="input-group">
+                                <button class="btn" style="flex: 1;" id="btn_apply_14">套用</button>
+                                <button class="btn" style="flex: 1;" id="btn_reset_14">自動</button>
+                            </div>
+                            <button class="btn btn-primary" style="width: 100%; margin-top: 8px;" id="btn_lock_14">🔒 鎖定擬合</button>
+                        </div>
+
+                        <div style="margin-top: 16px;">
+                            <h4 style="font-size: 0.9rem; margin-bottom: 8px;">設備方向參考</h4>
+                            <div id="chart3d_ref_14" style="height: 200px; background: rgba(0,0,0,0.2); border-radius: 12px;"></div>
+                            <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center;">
+                                <button class="btn" id="btn_play_14">▶ 播放</button>
+                                <button class="btn" id="btn_pause_14">⏸ 暫停</button>
+                                <select id="speed_14" style="background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 6px;">
+                                    <option value="0.5">0.5x</option>
+                                    <option value="1" selected>1x</option>
+                                    <option value="2">2x</option>
+                                    <option value="5">5x</option>
+                                </select>
+                                <span id="play_status_14" style="font-size: 0.8rem; color: var(--text-secondary);">Stop</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 2D Projections -->
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <div id="chart2d_14_xy" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                    <div id="chart2d_14_xz" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                    <div id="chart2d_14_yz" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                </div>
+            </div>
+
+            <!-- Sensor 35 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🛰 Uncalibrated Accelerometer (ID 35)</div>
+                </div>
+                <div id="chart3d_35" class="chart-3d-div" style="height: 400px; min-width: 100%;"></div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <div id="chart2d_35_xy" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                    <div id="chart2d_35_xz" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                    <div id="chart2d_35_yz" style="flex: 1; height: 250px; background: rgba(0,0,0,0.1); border-radius: 12px;"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Global Variables for Data
+        let sensorData = {
+            s2: { t: [], x: [], y: [], z: [] },
+            s14: { t: [], x: [], y: [], z: [] },
+            s35: { t: [], x: [], y: [], z: [], mag: [], pitch: [], roll: [] }
+        };
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('light-mode');
+        });
+
+        // File Upload Logic
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
+        });
+
+        dropArea.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFileSelect, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            const file = files[0];
+            document.getElementById('file-name-display').innerText = `檔案: ${file.name}`;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                parseData(content, file.name);
+            };
+            reader.readAsText(file);
+        }
+
+        // Parsing Logic
+        function parseData(content, fileName) {
+            console.log("Parsing file:", fileName);
+            document.getElementById('dashboard').style.display = 'grid';
+            
+            // Reset data
+            sensorData = {
+                s2: { t: [], x: [], y: [], z: [] },
+                s14: { t: [], x: [], y: [], z: [] },
+                s35: { t: [], x: [], y: [], z: [], mag: [], pitch: [], roll: [] }
+            };
+            
+            const lines = content.split('\n');
+            if (lines.length === 0) {
+                alert("檔案內容為空！");
+                return;
+            }
+
+            const firstLine = lines[0].trim();
+            const isCsv = fileName.toLowerCase().endsWith('.csv');
+            const isTxt = fileName.toLowerCase().endsWith('.txt');
+
+            if (isCsv) {
+                console.log("Detected CSV file");
+                parseCSV(content);
+            } else if (isTxt) {
+                if (firstLine.startsWith("sensor_test")) {
+                    console.log("Detected Old TXT format");
+                    parseOldTXT(lines);
+                } else {
+                    console.log("Detected New TXT format");
+                    parseNewTXT(content);
+                }
+            } else {
+                // Fallback
+                if (firstLine.startsWith("sensor_test")) {
+                    console.log("Guessed Old TXT format");
+                    parseOldTXT(lines);
+                } else if (content.includes(',')) {
+                    console.log("Guessed CSV/New TXT format");
+                    parseCSV(content);
+                } else {
+                    alert("無法識別的檔案格式！");
+                }
+            }
+        }
+
+        function parseCSV(content) {
+            console.log("Parsing CSV...");
+            const results = Papa.parse(content, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true
+            });
+
+            const data = results.data;
+            processRows(data);
+        }
+
+        function processRows(rows) {
+            let allFirstTimes = [];
+
+            rows.forEach(row => {
+                const t = row.t_sys_nanos;
+                if (!t) return;
+
+                const sensorId = String(row.sensor_id);
+                const sensorName = String(row.sensor_name);
+                const x = parseFloat(row.sensor_x);
+                const y = parseFloat(row.sensor_y);
+                const z = parseFloat(row.sensor_z);
+
+                if (isNaN(x) || isNaN(y) || isNaN(z)) return;
+
+                if (sensorId === "2" || sensorName.includes("Magnetometer Sensor")) {
+                    // Distinguish between calibrated and uncalibrated if name is ambiguous
+                    if (sensorName.includes("Uncalibrated")) {
+                        sensorData.s14.t.push(t);
+                        sensorData.s14.x.push(x);
+                        sensorData.s14.y.push(y);
+                        sensorData.s14.z.push(z);
+                    } else {
+                        sensorData.s2.t.push(t);
+                        sensorData.s2.x.push(x);
+                        sensorData.s2.y.push(y);
+                        sensorData.s2.z.push(z);
+                    }
+                } else if (sensorId === "14") {
+                    sensorData.s14.t.push(t);
+                    sensorData.s14.x.push(x);
+                    sensorData.s14.y.push(y);
+                    sensorData.s14.z.push(z);
+                } else if (sensorId === "35" || sensorName.includes("Accelerometer")) {
+                    sensorData.s35.t.push(t);
+                    sensorData.s35.x.push(x);
+                    sensorData.s35.y.push(y);
+                    sensorData.s35.z.push(z);
+                    
+                    // Calculate magnitude
+                    const mag = Math.sqrt(x*x + y*y + z*z);
+                    sensorData.s35.mag.push(mag);
+                    
+                    // Calculate pitch and roll
+                    const pitch = Math.atan2(x, Math.sqrt(y*y + z*z)) * 180 / Math.PI;
+                    const roll = Math.atan2(y, Math.sqrt(x*x + z*z)) * 180 / Math.PI;
+                    sensorData.s35.pitch.push(pitch);
+                    sensorData.s35.roll.push(roll);
+                }
+            });
+
+            // Normalize time
+            if (sensorData.s2.t.length > 0) allFirstTimes.push(sensorData.s2.t[0]);
+            if (sensorData.s14.t.length > 0) allFirstTimes.push(sensorData.s14.t[0]);
+            if (sensorData.s35.t.length > 0) allFirstTimes.push(sensorData.s35.t[0]);
+
+            if (allFirstTimes.length > 0) {
+                const t0 = Math.min(...allFirstTimes);
+                sensorData.s2.t = sensorData.s2.t.map(t => (t - t0) / 1e9);
+                sensorData.s14.t = sensorData.s14.t.map(t => (t - t0) / 1e9);
+                sensorData.s35.t = sensorData.s35.t.map(t => (t - t0) / 1e9);
+            }
+
+            console.log(`Extracted ${sensorData.s2.t.length} points for S2, ${sensorData.s14.t.length} for S14, ${sensorData.s35.t.length} for S35`);
+            
+            // Trigger Plotting
+            updateCharts();
+        }
+
+        function updateCharts() {
+            console.log("Updating charts...");
+            
+            // 顯示 Dashboard
+            document.getElementById('dashboard').style.display = 'grid';
+
+            const theme = {
+                name: "暗色科技",
+                bg: "#0f172a",
+                containerBg: "rgba(30, 41, 59, 0.5)",
+                text: "#f8fafc",
+                accent: "#38bdf8",
+                grid: "#334155",
+                plotBg: "rgba(0,0,0,0)",
+                histColor: "#38bdf8",
+                infoBg: "rgba(30, 41, 59, 0.7)",
+                paperBg: "rgba(0,0,0,0)",
+                axisFont: "#94a3b8"
+            };
+
+            // --- 2D Charts ---
+            const trace2_X = { x: sensorData.s2.t, y: sensorData.s2.x, name: 'Cal Mag (X)', type: 'scatter', mode: 'lines', line: { color: '#ef4444', width: 1.5 }, xaxis: 'x', yaxis: 'y' };
+            const trace2_Y = { x: sensorData.s2.t, y: sensorData.s2.y, name: 'Cal Mag (Y)', type: 'scatter', mode: 'lines', line: { color: '#22c55e', width: 1.5 }, xaxis: 'x', yaxis: 'y' };
+            const trace2_Z = { x: sensorData.s2.t, y: sensorData.s2.z, name: 'Cal Mag (Z)', type: 'scatter', mode: 'lines', line: { color: '#3b82f6', width: 1.5 }, xaxis: 'x', yaxis: 'y' };
+            const trace2_Err = { x: sensorData.s2.t, y: Array(sensorData.s2.t.length).fill(null), name: 'Fit Error', type: 'scatter', mode: 'lines', line: { color: '#ffff00', width: 1.5, dash: 'dot' }, xaxis: 'x4', yaxis: 'y4' };
+
+            const trace14_X = { x: sensorData.s14.t, y: sensorData.s14.x, name: 'Uncal Mag (X)', type: 'scatter', mode: 'lines', line: { color: '#fca5a5', width: 1.5, dash: 'dash' }, xaxis: 'x2', yaxis: 'y2' };
+            const trace14_Y = { x: sensorData.s14.t, y: sensorData.s14.y, name: 'Uncal Mag (Y)', type: 'scatter', mode: 'lines', line: { color: '#86efac', width: 1.5, dash: 'dash' }, xaxis: 'x2', yaxis: 'y2' };
+            const trace14_Z = { x: sensorData.s14.t, y: sensorData.s14.z, name: 'Uncal Mag (Z)', type: 'scatter', mode: 'lines', line: { color: '#93c5fd', width: 1.5, dash: 'dash' }, xaxis: 'x2', yaxis: 'y2' };
+            const trace14_Err = { x: sensorData.s14.t, y: Array(sensorData.s14.t.length).fill(null), name: 'Fit Error', type: 'scatter', mode: 'lines', line: { color: '#ffff00', width: 1.5, dash: 'dot' }, xaxis: 'x5', yaxis: 'y5' };
+
+            const trace35_X = { x: sensorData.s35.t, y: sensorData.s35.x, name: 'ACC (X)', type: 'scatter', mode: 'lines', line: { color: '#f59e0b', width: 1.5, dash: 'dot' }, xaxis: 'x3', yaxis: 'y3' };
+            const trace35_Y = { x: sensorData.s35.t, y: sensorData.s35.y, name: 'ACC (Y)', type: 'scatter', mode: 'lines', line: { color: '#10b981', width: 1.5, dash: 'dot' }, xaxis: 'x3', yaxis: 'y3' };
+            const trace35_Z = { x: sensorData.s35.t, y: sensorData.s35.z, name: 'ACC (Z)', type: 'scatter', mode: 'lines', line: { color: '#6366f1', width: 1.5, dash: 'dot' }, xaxis: 'x3', yaxis: 'y3' };
+            
+            const trace35_Mag = { x: sensorData.s35.t, y: sensorData.s35.mag, name: 'ACC Mag', type: 'scatter', mode: 'lines', line: { color: '#ec4899', width: 1.5 }, xaxis: 'x6', yaxis: 'y6' };
+            
+            const trace35_Pitch = { x: sensorData.s35.t, y: sensorData.s35.pitch, name: 'ACC Pitch', type: 'scatter', mode: 'lines', line: { color: '#a855f7', width: 1.5 }, xaxis: 'x7', yaxis: 'y7' };
+            const trace35_Roll = { x: sensorData.s35.t, y: sensorData.s35.roll, name: 'ACC Roll', type: 'scatter', mode: 'lines', line: { color: '#06b6d4', width: 1.5 }, xaxis: 'x7', yaxis: 'y7' };
+
+            const data2d = [
+                trace2_X, trace2_Y, trace2_Z, trace2_Err,
+                trace14_X, trace14_Y, trace14_Z, trace14_Err,
+                trace35_X, trace35_Y, trace35_Z,
+                trace35_Mag,
+                trace35_Pitch, trace35_Roll
+            ];
+
+            const layout2d = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#94a3b8' },
+                grid: { rows: 7, cols: 1, pattern: 'independent' },
+                
+                xaxis: { title: '', gridcolor: '#334155', zerolinecolor: '#334155', anchor: 'y' },
+                yaxis: { title: 'Cal Mag', gridcolor: '#334155', zerolinecolor: '#334155', domain: [0.87, 1.0] },
+                
+                xaxis4: { title: '', gridcolor: '#334155', zerolinecolor: '#334155', anchor: 'y4', matches: 'x' },
+                yaxis4: { title: 'Err 2', gridcolor: '#334155', zerolinecolor: '#334155', domain: [0.72, 0.84] },
+                
+                xaxis2: { title: '', gridcolor: '#334155', zerolinecolor: '#334155', anchor: 'y2', matches: 'x' },
+                yaxis2: { title: 'Uncal Mag', gridcolor: '#334155', zerolinecolor: '#334155', domain: [0.57, 0.69] },
+                
+                xaxis5: { title: '', gridcolor: '#334155', zerolinecolor: '#334155', anchor: 'y5', matches: 'x' },
+                yaxis5: { title: 'Err 14', gridcolor: '#334155', zerolinecolor: '#334155', domain: [0.42, 0.54] },
+                
+                xaxis3: { title: '', gridcolor: '#334155', zerolinecolor: '#334155', anchor: 'y3', matches: 'x' },
+                yaxis3: { title: 'ACC', gridcolor: '#334155', zerolinecolor: '#334155', domain: [0.27, 0.39] },
+                
+                xaxis6: { title: '', gridcolor: '#334155', zerolinecolor: '#334155', anchor: 'y6', matches: 'x' },
+                yaxis6: { title: 'ACC Mag', gridcolor: '#334155', zerolinecolor: '#334155', domain: [0.12, 0.24] },
+                
+                xaxis7: { title: 'Time (s)', gridcolor: '#334155', zerolinecolor: '#334155', anchor: 'y7', matches: 'x' },
+                yaxis7: { title: 'ACC Angles', gridcolor: '#334155', zerolinecolor: '#334155', domain: [0.0, 0.09] },
+                
+                legend: { orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right', x: 1 },
+                margin: { t: 50, r: 30, l: 60, b: 50 }
+            };
+
+            Plotly.newPlot('chart_2d', data2d, layout2d);
+
+            // --- 3D Charts ---
+            const layout3d = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#94a3b8' },
+                scene: {
+                    xaxis: { title: 'X', gridcolor: '#334155' },
+                    yaxis: { title: 'Y', gridcolor: '#334155' },
+                    zaxis: { title: 'Z', gridcolor: '#334155' }
+                },
+                margin: { t: 0, r: 0, l: 0, b: 0 }
+            };
+
+            Plotly.newPlot('chart3d_2', [{
+                x: sensorData.s2.x, y: sensorData.s2.y, z: sensorData.s2.z,
+                mode: 'markers', type: 'scatter3d',
+                marker: { size: 3, color: sensorData.s2.t, colorscale: 'Viridis', opacity: 0.8 }
+            }], layout3d);
+
+            Plotly.newPlot('chart3d_14', [{
+                x: sensorData.s14.x, y: sensorData.s14.y, z: sensorData.s14.z,
+                mode: 'markers', type: 'scatter3d',
+                marker: { size: 3, color: sensorData.s14.t, colorscale: 'Viridis', opacity: 0.8 }
+            }], layout3d);
+
+            Plotly.newPlot('chart3d_35', [{
+                x: sensorData.s35.x, y: sensorData.s35.y, z: sensorData.s35.z,
+                mode: 'markers', type: 'scatter3d',
+                marker: { size: 3, color: sensorData.s35.t, colorscale: 'Viridis', opacity: 0.8 }
+            }], layout3d);
+
+            // --- Reference Plots (Phone & Watch) ---
+            const phone_x = [-5, 5, 5, -5, -5, -5, 5, 5, -5, -5, null, 5, 5, null, 5, 5, null, -5, -5];
+            const phone_y = [-10, -10, 10, 10, -10, -10, -10, 10, 10, -10, null, -10, -10, null, 10, 10, null, 10, 10];
+            const phone_z = [-1, -1, -1, -1, -1, 1, 1, 1, 1, 1, null, -1, 1, null, -1, 1, null, -1, 1];
+
+            const watch_x = [-5, 5, 5, -5, -5, -5, 5, 5, -5, -5, null, 5, 5, null, 5, 5, null, 5, 5];
+            const watch_y = [-5, -5, 5, 5, -5, -5, -5, 5, 5, -5, null, -5, -5, null, 5, 5, null, 5, 5];
+            const watch_z = [-1.5, -1.5, -1.5, -1.5, -1.5, 1.5, 1.5, 1.5, 1.5, 1.5, null, -1.5, 1.5, null, -1.5, 1.5, null, -1.5, 1.5];
+
+            const trace_phone = {
+                x: phone_x.map(v => v === null ? null : v - 15), 
+                y: phone_y, 
+                z: phone_z,
+                mode: 'lines', type: 'scatter3d',
+                name: 'Phone Ref',
+                line: { color: '#94a3b8', width: 2 },
+                showlegend: false
+            };
+
+            const trace_watch = {
+                x: watch_x.map(v => v === null ? null : v + 15), 
+                y: watch_y, 
+                z: watch_z,
+                mode: 'lines', type: 'scatter3d',
+                name: 'Watch Ref',
+                line: { color: '#94a3b8', width: 2 },
+                showlegend: false
+            };
+
+            const trace_ref_X = {
+                x: [-15, -5, null, 15, 25],
+                y: [0, 0, null, 0, 0],
+                z: [0, 0, null, 0, 0],
+                mode: 'lines+text',
+                type: 'scatter3d',
+                text: ['', '+X', '', '', '+X'],
+                line: { color: '#ef4444', width: 3 },
+                textfont: { color: '#ef4444', size: 12 },
+                showlegend: false
+            };
+
+            const trace_ref_Y = {
+                x: [-15, -15, null, 15, 15],
+                y: [0, 15, null, 0, 10],
+                z: [0, 0, null, 0, 0],
+                mode: 'lines+text',
+                type: 'scatter3d',
+                text: ['', '+Y', '', '', '+Y'],
+                line: { color: '#22c55e', width: 3 },
+                textfont: { color: '#22c55e', size: 12 },
+                showlegend: false
+            };
+
+            const trace_ref_Z = {
+                x: [-15, -15, null, 15, 15],
+                y: [0, 0, null, 0, 0],
+                z: [0, 10, null, 0, 10],
+                mode: 'lines+text',
+                type: 'scatter3d',
+                text: ['', '+Z', '', '', '+Z'],
+                line: { color: '#3b82f6', width: 3 },
+                textfont: { color: '#3b82f6', size: 12 },
+                showlegend: false
+            };
+
+            const ref_data = [trace_phone, trace_watch, trace_ref_X, trace_ref_Y, trace_ref_Z];
+
+            const ref_layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#94a3b8' },
+                scene: {
+                    xaxis: { title: '', showgrid: false, showbackground: false, zeroline: false, showticklabels: false },
+                    yaxis: { title: '', showgrid: false, showbackground: false, zeroline: false, showticklabels: false },
+                    zaxis: { title: '', showgrid: false, showbackground: false, zeroline: false, showticklabels: false },
+                    camera: { eye: { x: 0, y: -2, z: 1 } }
+                },
+                margin: { t: 0, r: 0, l: 0, b: 0 },
+                showlegend: false
+            };
+
+            Plotly.newPlot('chart3d_ref_2', ref_data, ref_layout);
+            Plotly.newPlot('chart3d_ref_14', ref_data, ref_layout);
+
+            // Initial fit and projection update
+            const maxTime = Math.max(
+                sensorData.s2.t[sensorData.s2.t.length - 1] || 0,
+                sensorData.s14.t[sensorData.s14.t.length - 1] || 0,
+                sensorData.s35.t[sensorData.s35.t.length - 1] || 0
+            );
+            
+            // Hook up event listener for sync
+            const chart2d = document.getElementById('chart_2d');
+            chart2d.on('plotly_relayout', function(eventdata){
+                let start = 0;
+                let end = maxTime;
+
+                if (eventdata['xaxis.range[0]'] !== undefined) {
+                    start = eventdata['xaxis.range[0]'];
+                    end = eventdata['xaxis.range[1]'];
+                } else if (eventdata['xaxis2.range[0]'] !== undefined) {
+                    start = eventdata['xaxis2.range[0]'];
+                    end = eventdata['xaxis2.range[1]'];
+                } else if (eventdata['xaxis3.range[0]'] !== undefined) {
+                    start = eventdata['xaxis3.range[0]'];
+                    end = eventdata['xaxis3.range[1]'];
+                }
+
+                filterAndUpdate3D('chart3d_2', sensorData.s2, start, end, true, 'sphere_info_2');
+                filterAndUpdate3D('chart3d_14', sensorData.s14, start, end, true, 'sphere_info_14');
+                filterAndUpdate3D('chart3d_35', sensorData.s35, start, end, false, '');
+            });
+
+            // Initial call
+            filterAndUpdate3D('chart3d_2', sensorData.s2, 0, maxTime, true, 'sphere_info_2');
+            filterAndUpdate3D('chart3d_14', sensorData.s14, 0, maxTime, true, 'sphere_info_14');
+            filterAndUpdate3D('chart3d_35', sensorData.s35, 0, maxTime, false, '');
+        }
+
+        function filterAndUpdate3D(chartId, dataObj, start, end, enableFitting, infoDivId) {
+            const theme = {
+                grid: "rgba(255, 255, 255, 0.05)",
+                plotBg: "rgba(0,0,0,0)",
+                paperBg: "rgba(0,0,0,0)",
+                axisFont: "#94a3b8",
+                name: "暗色科技"
+            };
+            
+            let filteredX = [];
+            let filteredY = [];
+            let filteredZ = [];
+            let filteredTimes = [];
+
+            for (let i = 0; i < dataObj.t.length; i++) {
+                if (dataObj.t[i] >= start && dataObj.t[i] <= end) {
+                    filteredX.push(dataObj.x[i]);
+                    filteredY.push(dataObj.y[i]);
+                    filteredZ.push(dataObj.z[i]);
+                    filteredTimes.push(dataObj.t[i]);
+                }
+            }
+
+            let traces = [{
+                x: filteredX,
+                y: filteredY,
+                z: filteredZ,
+                mode: 'markers',
+                type: 'scatter3d',
+                marker: {
+                    size: 3,
+                    color: filteredTimes,
+                    colorscale: 'Viridis',
+                    opacity: 0.8
+                }
+            }];
+
+            let sphere = null;
+            const suffix = chartId.replace('chart3d_', '');
+            
+            // 簡化鎖定邏輯，預設為自動擬合
+            if (enableFitting && filteredX.length >= 4) {
+                sphere = fitSphere(filteredX, filteredY, filteredZ);
+                const infoDiv = infoDivId ? document.getElementById(infoDivId) : null;
+                
+                if (sphere) {
+                    const [x0, y0, z0] = sphere.center;
+                    const r = sphere.radius;
+                    
+                    // 更新 UI 顯示
+                    if (infoDiv) {
+                        infoDiv.innerHTML = `
+                            <p><b>圓心 (Center):</b><br>
+                               X: ${x0.toFixed(3)}<br>
+                               Y: ${y0.toFixed(3)}<br>
+                               Z: ${z0.toFixed(3)}</p>
+                            <p><b>半徑 (Radius):</b><br>
+                               R: ${r.toFixed(3)}</p>
+                        `;
+                    }
+
+                    // 填入輸入框
+                    document.getElementById('input_cx_' + suffix).value = x0.toFixed(3);
+                    document.getElementById('input_cy_' + suffix).value = y0.toFixed(3);
+                    document.getElementById('input_cz_' + suffix).value = z0.toFixed(3);
+                    document.getElementById('input_r_' + suffix).value = r.toFixed(3);
+
+                    // 生成球體網格
+                    const mesh = generateSphereMesh(sphere.center, r);
+                    traces.push({
+                        type: 'surface',
+                        x: mesh.x,
+                        y: mesh.y,
+                        z: mesh.z,
+                        opacity: 0.2,
+                        colorscale: [[0, 'rgba(0, 242, 254, 0.5)'], [1, 'rgba(0, 242, 254, 0.5)']],
+                        showscale: false,
+                        name: 'Fitted Sphere'
+                    });
+                } else {
+                    if (infoDiv) infoDiv.innerHTML = "<p>擬合失敗</p>";
+                }
+            }
+
+            const layout3d = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#94a3b8' },
+                scene: {
+                    xaxis: { title: 'X', gridcolor: theme.grid },
+                    yaxis: { title: 'Y', gridcolor: theme.grid },
+                    zaxis: { title: 'Z', gridcolor: theme.grid }
+                },
+                margin: { t: 0, r: 0, l: 0, b: 0 }
+            };
+
+            Plotly.react(chartId, traces, layout3d);
+
+            // --- 2D Projections ---
+            const prefix = chartId.replace('chart3d_', 'chart2d_');
+            const id_xy = prefix + '_xy';
+            const id_xz = prefix + '_xz';
+            const id_yz = prefix + '_yz';
+
+            function create2DTrace(x, y, color) {
+                return {
+                    x: x,
+                    y: y,
+                    mode: 'markers',
+                    type: 'scatter',
+                    marker: { size: 3, color: color, colorscale: 'Viridis', opacity: 0.8 }
+                };
+            }
+
+            function createCircleTrace(centerX, centerY, radius) {
+                let cx = [];
+                let cy = [];
+                for(let i=0; i<=100; i++) {
+                    let theta = i * 2 * Math.PI / 100;
+                    cx.push(centerX + radius * Math.cos(theta));
+                    cy.push(centerY + radius * Math.sin(theta));
+                }
+                return {
+                    x: cx,
+                    y: cy,
+                    mode: 'lines',
+                    line: { color: '#00f2fe', width: 2 },
+                    name: 'Fitted Circle'
+                };
+            }
+
+            const layout_base = {
+                paper_bgcolor: theme.paperBg,
+                plot_bgcolor: theme.plotBg,
+                font: { color: theme.axisFont },
+                margin: { t: 30, r: 10, l: 40, b: 30 },
+                showlegend: false
+            };
+
+            let traces_xy = [create2DTrace(filteredX, filteredY, filteredTimes)];
+            let traces_xz = [create2DTrace(filteredX, filteredZ, filteredTimes)];
+            let traces_yz = [create2DTrace(filteredY, filteredZ, filteredTimes)];
+
+            if (sphere) {
+                const [x0, y0, z0] = sphere.center;
+                const r = sphere.radius;
+                traces_xy.push(createCircleTrace(x0, y0, r));
+                traces_xz.push(createCircleTrace(x0, z0, r));
+                traces_yz.push(createCircleTrace(y0, z0, r));
+            }
+
+            if (document.getElementById(id_xy)) {
+                Plotly.react(id_xy, traces_xy, Object.assign({}, layout_base, { 
+                    xaxis: { title: 'X', gridcolor: theme.grid, scaleanchor: 'y', scaleratio: 1 }, 
+                    yaxis: { title: 'Y', gridcolor: theme.grid } 
+                }));
+            }
+            if (document.getElementById(id_xz)) {
+                Plotly.react(id_xz, traces_xz, Object.assign({}, layout_base, { 
+                    xaxis: { title: 'X', gridcolor: theme.grid, scaleanchor: 'y', scaleratio: 1 }, 
+                    yaxis: { title: 'Z', gridcolor: theme.grid } 
+                }));
+            }
+            if (document.getElementById(id_yz)) {
+                Plotly.react(id_yz, traces_yz, Object.assign({}, layout_base, { 
+                    xaxis: { title: 'Y', gridcolor: theme.grid, scaleanchor: 'y', scaleratio: 1 }, 
+                    yaxis: { title: 'Z', gridcolor: theme.grid } 
+                }));
+            }
+        }
+
+        function fitSphere(x, y, z) {
+            const n = x.length;
+            if (n < 4) return null;
+
+            let A = [];
+            let Y = [];
+            for (let i = 0; i < n; i++) {
+                A.push([2 * x[i], 2 * y[i], 2 * z[i], 1]);
+                Y.push([x[i]*x[i] + y[i]*y[i] + z[i]*z[i]]);
+            }
+
+            try {
+                const AT = math.transpose(A);
+                const ATA = math.multiply(AT, A);
+                const ATY = math.multiply(AT, Y);
+                const beta = math.lusolve(ATA, ATY);
+
+                const x0 = beta[0][0];
+                const y0 = beta[1][0];
+                const z0 = beta[2][0];
+                const D = beta[3][0];
+
+                const radius = Math.sqrt(D + x0*x0 + y0*y0 + z0*z0);
+
+                return { center: [x0, y0, z0], radius: radius };
+            } catch (e) {
+                console.error("Sphere fit failed:", e);
+                return null;
+            }
+        }
+
+        function generateSphereMesh(center, radius) {
+            const n = 20;
+            const [x0, y0, z0] = center;
+            
+            let phi = [];
+            let theta = [];
+            for (let i = 0; i <= n; i++) phi.push(i * Math.PI / n);
+            for (let i = 0; i <= n; i++) theta.push(i * 2 * Math.PI / n);
+
+            let x = [];
+            let y = [];
+            let z = [];
+            for (let i = 0; i <= n; i++) {
+                let rowX = [], rowY = [], rowZ = [];
+                for (let j = 0; j <= n; j++) {
+                    rowX.push(x0 + radius * Math.sin(phi[i]) * Math.cos(theta[j]));
+                    rowY.push(y0 + radius * Math.sin(phi[i]) * Math.sin(theta[j]));
+                    rowZ.push(z0 + radius * Math.cos(phi[i]));
+                }
+                x.push(rowX);
+                y.push(rowY);
+                z.push(rowZ);
+            }
+            return { x, y, z };
+        }
+        }
+
+        function parseNewTXT(content) {
+            console.log("Parsing New TXT...");
+            const results = Papa.parse(content, {
+                header: false,
+                skipEmptyLines: true,
+                dynamicTyping: true
+            });
+
+            const data = results.data;
+            // 映射到預期的欄位名稱
+            const rows = data.map(row => {
+                return {
+                    t_sys_nanos: row[0],
+                    source: row[1],
+                    sensor_id: row[2],
+                    sensor_name: row[3],
+                    t_sensor_nanos: row[4],
+                    sensor_x: row[5],
+                    sensor_y: row[6],
+                    sensor_z: row[7]
+                };
+            });
+
+            processRows(rows);
+        }
+
+        function parseOldTXT(lines) {
+            console.log("Parsing Old TXT...");
+            
+            let allFirstTimes = [];
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith("Sensor: 6.0")) {
+                    const parts = line.split(/\s+/);
+                    if (parts.length >= 8 && parts[2] === "TS:" && parts[4] === "Data:") {
+                        try {
+                            const t = parseInt(parts[3]);
+                            const x = parseFloat(parts[5]);
+                            const y = parseFloat(parts[6]);
+                            const z = parseFloat(parts[7]);
+                            
+                            if (!isNaN(t) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                                sensorData.s2.t.push(t);
+                                sensorData.s2.x.push(x);
+                                sensorData.s2.y.push(y);
+                                sensorData.s2.z.push(z);
+                            }
+                        } catch (e) {}
+                    }
+                } else if (line.startsWith("Sensor: 1.0")) {
+                    const parts = line.split(/\s+/);
+                    if (parts.length >= 8 && parts[2] === "TS:" && parts[4] === "Data:") {
+                        try {
+                            const t = parseInt(parts[3]);
+                            const x = parseFloat(parts[5]);
+                            const y = parseFloat(parts[6]);
+                            const z = parseFloat(parts[7]);
+                            
+                            if (!isNaN(t) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                                sensorData.s35.t.push(t);
+                                sensorData.s35.x.push(x);
+                                sensorData.s35.y.push(y);
+                                sensorData.s35.z.push(z);
+                                
+                                // Calculate magnitude
+                                const mag = Math.sqrt(x*x + y*y + z*z);
+                                sensorData.s35.mag.push(mag);
+                                
+                                // Calculate pitch and roll
+                                const pitch = Math.atan2(x, Math.sqrt(y*y + z*z)) * 180 / Math.PI;
+                                const roll = Math.atan2(y, Math.sqrt(x*x + z*z)) * 180 / Math.PI;
+                                sensorData.s35.pitch.push(pitch);
+                                sensorData.s35.roll.push(roll);
+                            }
+                        } catch (e) {}
+                    }
+                }
+            });
+
+            // Normalize time
+            if (sensorData.s2.t.length > 0) allFirstTimes.push(sensorData.s2.t[0]);
+            if (sensorData.s35.t.length > 0) allFirstTimes.push(sensorData.s35.t[0]);
+
+            if (allFirstTimes.length > 0) {
+                const t0 = Math.min(...allFirstTimes);
+                sensorData.s2.t = sensorData.s2.t.map(t => (t - t0) / 1e9);
+                sensorData.s35.t = sensorData.s35.t.map(t => (t - t0) / 1e9);
+            }
+
+            console.log(`Extracted ${sensorData.s2.t.length} points for S2, ${sensorData.s35.t.length} for S35`);
+            
+            // Trigger Plotting
+            updateCharts();
+        }
+        // --- Orientation Playback Logic ---
+        const phone_x = [-5, 5, 5, -5, -5, -5, 5, 5, -5, -5, null, 5, 5, null, 5, 5, null, -5, -5];
+        const phone_y = [-10, -10, 10, 10, -10, -10, -10, 10, 10, -10, null, -10, -10, null, 10, 10, null, 10, 10];
+        const phone_z = [-1, -1, -1, -1, -1, 1, 1, 1, 1, 1, null, -1, 1, null, -1, 1, null, -1, 1];
+
+        const watch_x = [-5, 5, 5, -5, -5, -5, 5, 5, -5, -5, null, 5, 5, null, 5, 5, null, 5, 5];
+        const watch_y = [-5, -5, 5, 5, -5, -5, -5, 5, 5, -5, null, -5, -5, null, 5, 5, null, 5, 5];
+        const watch_z = [-1.5, -1.5, -1.5, -1.5, -1.5, 1.5, 1.5, 1.5, 1.5, 1.5, null, -1.5, 1.5, null, -1.5, 1.5, null, -1.5, 1.5];
+
+        function updateOrientation(chartId, pitch, roll) {
+            const p = pitch * Math.PI / 180;
+            const r = roll * Math.PI / 180;
+
+            const Ry = [
+                [Math.cos(p), 0, Math.sin(p)],
+                [0, 1, 0],
+                [-Math.sin(p), 0, Math.cos(p)]
+            ];
+
+            const Rx = [
+                [1, 0, 0],
+                [0, Math.cos(r), -Math.sin(r)],
+                [0, Math.sin(r), Math.cos(r)]
+            ];
+
+            const R = math.multiply(Ry, Rx);
+
+            function rotatePoints(xArr, yArr, zArr, translateX) {
+                let rx = [], ry = [], rz = [];
+                for(let i=0; i<xArr.length; i++) {
+                    if (xArr[i] === null) {
+                        rx.push(null); ry.push(null); rz.push(null);
+                        continue;
+                    }
+                    const pt = [xArr[i], yArr[i], zArr[i]];
+                    const rotatedPt = math.multiply(R, pt);
+                    rx.push(rotatedPt[0] + translateX);
+                    ry.push(rotatedPt[1]);
+                    rz.push(rotatedPt[2]);
+                }
+                return {x: rx, y: ry, z: rz};
+            }
+
+            const phone = rotatePoints(phone_x, phone_y, phone_z, -15);
+            const watch = rotatePoints(watch_x, watch_y, watch_z, 15);
+
+            Plotly.restyle(chartId, {
+                x: [phone.x, watch.x],
+                y: [phone.y, watch.y],
+                z: [phone.z, watch.z]
+            }, [0, 1]);
+        }
+
+        // Setup playback for Sensor 2 and 14
+        setupPlayback('2');
+        setupPlayback('14');
+
+        function setupPlayback(suffix) {
+            let playInterval = null;
+            let playIndex = 0;
+            let playStartTime = null;
+            let dataStartTime = null;
+
+            const btnPlay = document.getElementById('btn_play_' + suffix);
+            const btnPause = document.getElementById('btn_pause_' + suffix);
+            const statusSpan = document.getElementById('play_status_' + suffix);
+            const speedSelect = document.getElementById('speed_' + suffix);
+
+            if (!btnPlay || !btnPause) return;
+
+            btnPlay.addEventListener('click', function() {
+                if (playInterval) return;
+                if (sensorData.s35.t.length === 0) {
+                    alert("無加速度計數據，無法播放方向！");
+                    return;
+                }
+                statusSpan.innerText = "Playing";
+                playStartTime = Date.now();
+                dataStartTime = sensorData.s35.t[playIndex];
+                const speedFactor = parseFloat(speedSelect.value);
+                
+                playInterval = setInterval(() => {
+                    const elapsed = (Date.now() - playStartTime) / 1000;
+                    const targetTime = dataStartTime + elapsed * speedFactor;
+                    
+                    let closestIdx = playIndex;
+                    let minDiff = Math.abs(sensorData.s35.t[playIndex] - targetTime);
+                    for(let i = playIndex; i < sensorData.s35.t.length; i++) {
+                        let diff = Math.abs(sensorData.s35.t[i] - targetTime);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closestIdx = i;
+                        } else if (diff > minDiff && sensorData.s35.t[i] > targetTime) {
+                            break;
+                        }
+                    }
+                    
+                    playIndex = closestIdx;
+                    
+                    if (playIndex >= sensorData.s35.t.length - 1) {
+                        clearInterval(playInterval);
+                        playInterval = null;
+                        statusSpan.innerText = "End";
+                        playIndex = 0;
+                        return;
+                    }
+                    
+                    const pitch = sensorData.s35.pitch[playIndex];
+                    const roll = sensorData.s35.roll[playIndex];
+                    updateOrientation('chart3d_ref_' + suffix, pitch, roll);
+                    
+                    statusSpan.innerText = `T: ${sensorData.s35.t[playIndex].toFixed(1)}s`;
+                }, 30);
+            });
+
+            btnPause.addEventListener('click', function() {
+                if (playInterval) {
+                    clearInterval(playInterval);
+                    playInterval = null;
+                    statusSpan.innerText = "Paused";
+                }
+            });
+        }
+    </script>
+</body>
+</html>

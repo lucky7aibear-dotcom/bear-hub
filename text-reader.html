@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 文字閱讀相機</title>
+    <!-- 載入 Tesseract.js (光學字元辨識) -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --accent: #38bdf8;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        h1 { color: var(--accent); margin-bottom: 10px; text-align: center; }
+        .container {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid #334155;
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 4/3;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(56, 189, 248, 0.8);
+            box-shadow: 0 0 10px rgba(56, 189, 248, 1);
+            animation: scan 2s linear infinite;
+            display: none;
+        }
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        #start-btn { background: #38bdf8; color: #0f172a; }
+        #start-btn:hover { background: #0284c7; }
+        #stop-btn { background: #ef4444; color: white; display: none; }
+        #stop-btn:hover { background: #b91c1c; }
+        
+        .status {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        .result-box {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 80px;
+            font-size: 16px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>👁️ AI 文字閱讀相機</h1>
+    <div class="container">
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+            <div id="scan-line"></div>
+        </div>
+        
+        <div class="controls">
+            <button id="start-btn">開始掃描與朗讀</button>
+            <button id="stop-btn">停止</button>
+        </div>
+        
+        <div class="status" id="status">準備就緒。點擊「開始」以載入 AI 模型...</div>
+        
+        <div class="result-box" id="result">
+            <span style="color: #64748b;">辨識出的中英文會顯示在這裡，並自動為你朗讀...</span>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const statusEl = document.getElementById('status');
+        const resultEl = document.getElementById('result');
+        const scanLine = document.getElementById('scan-line');
+
+        let isScanning = false;
+        let worker = null;
+        let scanInterval = null;
+        let lastReadText = "";
+
+        const synth = window.speechSynthesis;
+
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("相機權限錯誤:", err);
+                statusEl.innerText = "無法存取相機，請確認已給予權限！";
+            }
+        }
+
+        async function initTesseract() {
+            statusEl.innerText = "正在載入 OCR 模型 (首次載入需幾秒鐘)...";
+            startBtn.disabled = true;
+            try {
+                worker = await Tesseract.createWorker('eng+chi_tra');
+                statusEl.innerText = "模型載入完成！正在掃描...";
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'block';
+                scanLine.style.display = 'block';
+                isScanning = true;
+                
+                // 每 2.5 秒截圖辨識一次
+                scanInterval = setInterval(captureAndRecognize, 2500);
+            } catch (err) {
+                console.error(err);
+                statusEl.innerText = "模型載入失敗。";
+                startBtn.disabled = false;
+            }
+        }
+
+        async function captureAndRecognize() {
+            if (!isScanning || !worker) return;
+
+            // 正在說話時暫停抓取新字，避免互相干擾打斷
+            if (synth.speaking) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            try {
+                statusEl.innerText = "🔍 辨識中...";
+                const { data: { text } } = await worker.recognize(canvas);
+                
+                const cleanText = text.replace(/\s+/g, ' ').trim();
+                
+                // 過濾雜訊與重複文字
+                if (cleanText.length > 1 && cleanText !== lastReadText) {
+                    const hasWords = /[a-zA-Z\u4e00-\u9fa5]/.test(cleanText);
+                    if (hasWords) {
+                        resultEl.innerText = cleanText;
+                        lastReadText = cleanText;
+                        speakText(cleanText);
+                        statusEl.innerText = "🔊 朗讀中...";
+                    } else {
+                        statusEl.innerText = "掃描中...";
+                    }
+                } else {
+                    statusEl.innerText = "掃描中...";
+                }
+            } catch (err) {
+                console.error("辨識錯誤:", err);
+            }
+        }
+
+        function speakText(text) {
+            if (synth.speaking) {
+                synth.cancel();
+            }
+            const utterThis = new SpeechSynthesisUtterance(text);
+            
+            // 尋找台灣繁體中文語音
+            const voices = synth.getVoices();
+            const zhVoice = voices.find(v => v.lang.includes('zh-TW') || v.lang.includes('zh-HK'));
+            if (zhVoice) {
+                utterThis.voice = zhVoice;
+            }
+            
+            utterThis.rate = 0.9;
+            utterThis.onend = () => {
+                if(isScanning) statusEl.innerText = "掃描中...";
+            };
+            synth.speak(utterThis);
+        }
+
+        startBtn.addEventListener('click', async () => {
+            await initCamera();
+            await initTesseract();
+            // 啟動一下空語音，解鎖瀏覽器的自動播放限制
+            synth.speak(new SpeechSynthesisUtterance(""));
+        });
+
+        stopBtn.addEventListener('click', () => {
+            isScanning = false;
+            clearInterval(scanInterval);
+            synth.cancel();
+            statusEl.innerText = "已暫停。";
+            startBtn.style.display = 'block';
+            startBtn.disabled = false;
+            stopBtn.style.display = 'none';
+            scanLine.style.display = 'none';
+        });
+
+        // 載入語音庫
+        speechSynthesis.onvoiceschanged = () => {
+            window.speechVoices = speechSynthesis.getVoices();
+        };
+
+        // 網頁載入時啟動相機
+        initCamera();
+    </script>
+</body>
+</html>
